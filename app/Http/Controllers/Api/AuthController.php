@@ -12,8 +12,191 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
-class RegisterController extends Controller
+class AuthController extends Controller
 {
+    public function login(Request $request)
+    {
+        try {
+
+            $request->validate([
+                'email' => [
+                    'required',
+                    'email',
+                    'max:150'
+                ],
+
+                'password' => [
+                    'required',
+                    'string'
+                ],
+            ]);
+
+
+            /*
+             * Find user
+             */
+            $user = User::where(
+                'email',
+                strtolower(trim($request->email))
+            )->first();
+
+
+            /*
+             * Check user/password
+             */
+            if (
+                !$user ||
+                !Hash::check(
+                    $request->password,
+                    $user->password
+                )
+            ) {
+
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Invalid email or password.'
+                ], 401);
+            }
+
+
+            /*
+             * Optional:
+             * prevent rejected users from login
+             */
+            if ($user->status === 'rejected') {
+
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Your account has been rejected.'
+                ], 403);
+            }
+
+
+            /*
+             * Optional:
+             * You can block under-review Drivers if needed.
+             *
+             * Currently I am allowing login and returning status
+             * so mobile app can show review screen.
+             */
+
+
+            /*
+             * Remove old tokens if you want
+             * only one active login/session.
+             *
+             * $user->tokens()->delete();
+             */
+
+
+            /*
+             * Create Sanctum token
+             */
+            $token = $user
+                ->createToken('ridude-mobile-app')
+                ->plainTextToken;
+
+
+            /*
+             * Role specific information
+             */
+            $profile = null;
+
+            if ($user->role === 'driver') {
+
+                $profile = \DB::table('driver_profiles')
+                    ->where('user_id', $user->id)
+                    ->first();
+
+            } elseif ($user->role === 'rider') {
+
+                $profile = \DB::table('rider_profiles')
+                    ->where('user_id', $user->id)
+                    ->first();
+            }
+
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Login successful.',
+
+                'data' => [
+
+                    'user' => [
+                        'id' => $user->id,
+                        'role' => $user->role,
+                        'full_name' => $user->full_name,
+                        'email' => $user->email,
+                        'country_code' => $user->country_code,
+                        'phone_number' => $user->phone_number,
+                        'status' => $user->status,
+                    ],
+
+                    'profile' => $profile,
+
+                    'token_type' => 'Bearer',
+
+                    'token' => $token,
+                ]
+
+            ], 200);
+
+
+        } catch (ValidationException $e) {
+
+            return response()->json([
+                'status' => false,
+                'message' => 'Validation failed.',
+                'errors' => $e->errors()
+            ], 422);
+
+
+        } catch (Throwable $e) {
+
+            \Log::error('RIDUDE Login Error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'status' => false,
+                'message' => 'Login failed. Please try again.'
+            ], 500);
+        }
+    }
+
+    public function logout(Request $request)
+    {
+        try {
+
+            /*
+            * Delete current device/token only
+            */
+            $request->user()
+                ->currentAccessToken()
+                ->delete();
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Logout successful.'
+            ], 200);
+
+        } catch (\Throwable $e) {
+
+            \Log::error('RIDUDE Logout Error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'status' => false,
+                'message' => 'Logout failed. Please try again.'
+            ], 500);
+        }
+    }
+
     public function register(Request $request)
     {
         $uploadedFiles = [];
