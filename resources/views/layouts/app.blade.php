@@ -17,6 +17,11 @@
         name="description"
     />
 
+    <meta
+        name="csrf-token"
+        content="{{ csrf_token() }}"
+    />
+
     <link
         href="{{ asset('assets/images/logo.svg') }}"
         rel="icon"
@@ -120,7 +125,7 @@
             <a
                 class="nav-link
                 {{ request()->routeIs('admin.riders.*') ? 'active' : '' }}"
-                href="#"
+                href="{{ route('admin.riders.index') }}"
                 title="Riders"
             >
                 <svg
@@ -134,9 +139,7 @@
                         d="M2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1"
                     ></path>
 
-                    <path
-                        d="M16 4a4 4 0 0 1 0 8"
-                    ></path>
+                    <path d="M16 4a4 4 0 0 1 0 8"></path>
 
                     <path
                         d="M22 21v-1a6 6 0 0 0-4-5.6"
@@ -150,7 +153,7 @@
             <a
                 class="nav-link
                 {{ request()->routeIs('admin.drivers.*') ? 'active' : '' }}"
-                href="#"
+                href="{{ route('admin.drivers.index') }}"
                 title="Drivers"
             >
                 <svg
@@ -208,8 +211,9 @@
 
 
             <a
-                class="nav-link"
-                href="#"
+                class="nav-link
+                {{ request()->routeIs('admin.payment-methods.*') ? 'active' : '' }}"
+                href="{{ route('admin.payment-methods.index') }}"
                 title="Payment Methods"
             >
                 <svg
@@ -225,9 +229,7 @@
                         y="5"
                     ></rect>
 
-                    <path
-                        d="M2 10h20"
-                    ></path>
+                    <path d="M2 10h20"></path>
                 </svg>
 
                 <span>Payment Methods</span>

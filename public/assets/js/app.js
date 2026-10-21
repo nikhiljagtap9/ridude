@@ -155,57 +155,626 @@
     }
 
     function initRiders() {
-        $("#q").addEventListener("input", function () {
-            var query = this.value.toLowerCase();
-            filterRows(function (row) {
-                return Array.from(row.cells)
-                    .slice(0, 3)
-                    .some(function (cell) {
-                        return cell.textContent.toLowerCase().includes(query);
-                    });
+
+        var input = $("#q");
+        var container = $("#rider-list-area");
+
+        if (!input || !container) {
+            return;
+        }
+
+        var timer = null;
+
+
+        function loadRiders(
+            url,
+            updateHistory
+        ) {
+
+            if (updateHistory === undefined) {
+                updateHistory = true;
+            }
+
+            container.classList.add(
+                "is-loading"
+            );
+
+
+            fetch(url, {
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Accept": "text/html"
+                }
+            })
+            .then(function (response) {
+
+                if (!response.ok) {
+                    throw new Error(
+                        "Unable to load riders."
+                    );
+                }
+
+                return response.text();
+
+            })
+            .then(function (html) {
+
+                container.innerHTML = html;
+
+                if (updateHistory) {
+
+                    window.history.pushState(
+                        {},
+                        "",
+                        url
+                    );
+                }
+
+            })
+            .catch(function (error) {
+
+                console.error(error);
+
+                toast(
+                    "Unable to load riders."
+                );
+
+            })
+            .finally(function () {
+
+                container.classList.remove(
+                    "is-loading"
+                );
+
             });
-        });
+        }
+
+
+        /*
+        * Search
+        */
+        input.addEventListener(
+            "input",
+            function () {
+
+                clearTimeout(timer);
+
+                timer = setTimeout(
+                    function () {
+
+                        var url = new URL(
+                            window.location.href
+                        );
+
+                        var keyword =
+                            input.value.trim();
+
+                        if (keyword) {
+
+                            url.searchParams.set(
+                                "q",
+                                keyword
+                            );
+
+                        } else {
+
+                            url.searchParams.delete(
+                                "q"
+                            );
+                        }
+
+                        url.searchParams.delete(
+                            "page"
+                        );
+
+                        loadRiders(
+                            url.toString(),
+                            true
+                        );
+
+                    },
+                    500
+                );
+
+            }
+        );
+
+
+        /*
+        * Pagination
+        */
+        container.addEventListener(
+            "click",
+            function (event) {
+
+                var link =
+                    event.target.closest(
+                        ".pagination a"
+                    );
+
+                if (!link) {
+                    return;
+                }
+
+                event.preventDefault();
+
+                loadRiders(
+                    link.href,
+                    true
+                );
+
+            }
+        );
+
+
+        /*
+        * Back/forward
+        */
+        window.addEventListener(
+            "popstate",
+            function () {
+
+                var url =
+                    window.location.href;
+
+                var params =
+                    new URL(url)
+                        .searchParams;
+
+                input.value =
+                    params.get("q") || "";
+
+                loadRiders(
+                    url,
+                    false
+                );
+
+            }
+        );
+
     }
 
     function initDrivers() {
-        var selected = "pending";
-        function update() {
-            var rows = all("#rows > tr:not(.empty-row)");
-            all("[data-count]").forEach(function (counter) {
-                counter.textContent =
-                    counter.dataset.count === "total"
-                        ? rows.length
-                        : rows.filter(function (row) {
-                              return (
-                                  row.dataset.status === counter.dataset.count
-                              );
-                          }).length;
-            });
-            filterRows(function (row) {
-                return selected === "all" || row.dataset.status === selected;
+
+        var container =
+            $("#driver-list-area");
+
+        var input =
+            $("#driver-q");
+
+        var statusInput =
+            $("#driver-status");
+
+        var tabs =
+            $("#driver-tabs");
+
+        if (
+            !container ||
+            !tabs
+        ) {
+            return;
+        }
+
+        var timer = null;
+
+
+        function loadDrivers(
+            url,
+            updateHistory
+        ) {
+
+            if (
+                updateHistory === undefined
+            ) {
+                updateHistory = true;
+            }
+
+
+            container.classList.add(
+                "is-loading"
+            );
+
+
+            fetch(url, {
+
+                headers: {
+                    "X-Requested-With":
+                        "XMLHttpRequest",
+
+                    "Accept":
+                        "text/html"
+                }
+
+            })
+            .then(function (response) {
+
+                if (!response.ok) {
+                    throw new Error(
+                        "Unable to load drivers."
+                    );
+                }
+
+                return response.text();
+
+            })
+            .then(function (html) {
+
+                container.innerHTML = html;
+
+
+                if (updateHistory) {
+
+                    window.history.pushState(
+                        {},
+                        "",
+                        url
+                    );
+                }
+
+            })
+            .catch(function (error) {
+
+                console.error(error);
+
+                toast(
+                    "Unable to load drivers."
+                );
+
+            })
+            .finally(function () {
+
+                container.classList.remove(
+                    "is-loading"
+                );
+
             });
         }
-        initTabs(function (value) {
-            selected = value;
-            update();
-        });
-        $("#rows").addEventListener("click", function (event) {
-            var button = event.target.closest("[data-act]");
-            if (!button) return;
-            var row = button.closest("tr");
-            row.dataset.status = button.dataset.act;
-            var badge = $(".badge", row);
-            badge.textContent = row.dataset.status;
-            badge.className =
-                "badge " +
-                (row.dataset.status === "approved" ? "tone-green" : "tone-red");
-            all("[data-act]", row).forEach(function (action) {
-                action.hidden = action.dataset.act === row.dataset.status;
-            });
-            toast("Driver " + row.dataset.status);
-            update();
-        });
-        update();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Tabs
+        |--------------------------------------------------------------------------
+        */
+
+        tabs.addEventListener(
+            "click",
+            function (event) {
+
+                var button =
+                    event.target.closest(
+                        "[data-status]"
+                    );
+
+                if (!button) {
+                    return;
+                }
+
+
+                var status =
+                    button.dataset.status;
+
+
+                all(
+                    "[data-status]",
+                    tabs
+                ).forEach(
+                    function (tab) {
+
+                        tab.classList.toggle(
+                            "active",
+                            tab === button
+                        );
+
+                    }
+                );
+
+
+                statusInput.value =
+                    status;
+
+
+                var url =
+                    new URL(
+                        window.location.href
+                    );
+
+
+                url.searchParams.set(
+                    "status",
+                    status
+                );
+
+
+                url.searchParams.delete(
+                    "page"
+                );
+
+
+                loadDrivers(
+                    url.toString(),
+                    true
+                );
+
+            }
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Search
+        |--------------------------------------------------------------------------
+        */
+
+        if (input) {
+
+            input.addEventListener(
+                "input",
+                function () {
+
+                    clearTimeout(timer);
+
+
+                    timer = setTimeout(
+                        function () {
+
+                            var url =
+                                new URL(
+                                    window.location.href
+                                );
+
+
+                            var keyword =
+                                input.value.trim();
+
+
+                            if (keyword) {
+
+                                url.searchParams.set(
+                                    "q",
+                                    keyword
+                                );
+
+                            } else {
+
+                                url.searchParams.delete(
+                                    "q"
+                                );
+                            }
+
+
+                            url.searchParams.delete(
+                                "page"
+                            );
+
+
+                            loadDrivers(
+                                url.toString(),
+                                true
+                            );
+
+                        },
+                        500
+                    );
+
+                }
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Pagination
+        |--------------------------------------------------------------------------
+        */
+
+        container.addEventListener(
+            "click",
+            function (event) {
+
+                var link =
+                    event.target.closest(
+                        ".ridude-pagination a"
+                    );
+
+                if (!link) {
+                    return;
+                }
+
+
+                event.preventDefault();
+
+
+                loadDrivers(
+                    link.href,
+                    true
+                );
+
+            }
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Approve / Reject
+        |--------------------------------------------------------------------------
+        */
+
+        container.addEventListener(
+            "click",
+            function (event) {
+
+                var button =
+                    event.target.closest(
+                        ".driver-status-btn"
+                    );
+
+                if (!button) {
+                    return;
+                }
+
+
+                var driverId =
+                    button.dataset.id;
+
+                var status =
+                    button.dataset.status;
+
+
+                var message =
+                    status === "approved"
+                        ? "Approve this driver?"
+                        : "Reject this driver?";
+
+
+                if (!confirm(message)) {
+                    return;
+                }
+
+
+                button.disabled = true;
+
+
+                fetch(
+                    "/admin/drivers/" +
+                    driverId +
+                    "/status",
+                    {
+
+                        method: "POST",
+
+                        headers: {
+
+                            "Accept":
+                                "application/json",
+
+                            "Content-Type":
+                                "application/json",
+
+                            "X-CSRF-TOKEN":
+                                document
+                                    .querySelector(
+                                        'meta[name="csrf-token"]'
+                                    )
+                                    .getAttribute(
+                                        "content"
+                                    ),
+
+                            "X-Requested-With":
+                                "XMLHttpRequest"
+                        },
+
+                        body:
+                            JSON.stringify({
+                                status: status
+                            })
+                    }
+                )
+                .then(function (response) {
+
+                    return response.json();
+
+                })
+                .then(function (data) {
+
+                    if (!data.status) {
+
+                        throw new Error(
+                            data.message ||
+                            "Unable to update driver."
+                        );
+                    }
+
+
+                    toast(
+                        data.message
+                    );
+
+
+                    loadDrivers(
+                        window.location.href,
+                        false
+                    );
+
+                })
+                .catch(function (error) {
+
+                    console.error(error);
+
+                    toast(
+                        error.message
+                    );
+
+                    button.disabled =
+                        false;
+
+                });
+
+            }
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Back / Forward
+        |--------------------------------------------------------------------------
+        */
+
+        window.addEventListener(
+            "popstate",
+            function () {
+
+                var url =
+                    new URL(
+                        window.location.href
+                    );
+
+
+                var status =
+                    url.searchParams.get(
+                        "status"
+                    ) || "pending";
+
+
+                if (statusInput) {
+
+                    statusInput.value =
+                        status;
+                }
+
+
+                if (input) {
+
+                    input.value =
+                        url.searchParams.get(
+                            "q"
+                        ) || "";
+                }
+
+
+                all(
+                    "[data-status]",
+                    tabs
+                ).forEach(
+                    function (tab) {
+
+                        tab.classList.toggle(
+                            "active",
+                            tab.dataset.status ===
+                                status
+                        );
+
+                    }
+                );
+
+
+                loadDrivers(
+                    url.toString(),
+                    false
+                );
+
+            }
+        );
     }
 
     function initWorkplaces() {
@@ -274,34 +843,287 @@
     }
 
     function initPayments() {
-        $("#list").addEventListener("click", function (event) {
-            var button = event.target.closest(".switch");
-            if (!button) return;
-            var active = button.classList.toggle("on");
-            button.setAttribute("aria-checked", String(active));
-            var badge = $(".badge", button.closest(".card"));
-            badge.textContent = active ? "Active" : "Inactive";
-            badge.className = "badge " + (active ? "tone-green" : "tone-red");
-        });
-        $("#form").addEventListener("submit", function (event) {
-            event.preventDefault();
-            var name = $("#mname").value.trim();
-            if (!name) return;
-            var card = cloneTemplate("method-template");
-            $("h2", card).textContent = name;
-            $("p", card).textContent = "Custom method";
-            var button = $(".switch", card);
-            button.classList.add("on");
-            button.setAttribute("aria-label", "Toggle " + name);
-            button.setAttribute("aria-checked", "true");
-            button.dataset.id = "method-" + Date.now();
-            $(".badge", card).textContent = "Active";
-            $(".badge", card).className = "badge tone-green";
-            card.classList.add("is-visible");
-            $("#list").appendChild(card);
-            $("#mname").value = "";
-            toast("Payment method added");
-        });
+
+        var form =
+            $("#payment-method-form");
+
+        var list =
+            $("#payment-method-list");
+
+        if (!form || !list) {
+            return;
+        }
+
+
+        function csrfToken() {
+
+            var token =
+                document.querySelector(
+                    'meta[name="csrf-token"]'
+                );
+
+            return token
+                ? token.getAttribute("content")
+                : "";
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Add Payment Method
+        |--------------------------------------------------------------------------
+        */
+
+        form.addEventListener(
+            "submit",
+            function (event) {
+
+                event.preventDefault();
+
+
+                var input =
+                    $("#mname");
+
+                var button =
+                    $("#add-payment-method-btn");
+
+                var name =
+                    input.value.trim();
+
+
+                if (!name) {
+
+                    input.focus();
+
+                    toast(
+                        "Please enter payment method name."
+                    );
+
+                    return;
+                }
+
+
+                button.disabled = true;
+
+
+                fetch(
+                    form.action ||
+                    window.location.pathname,
+                    {
+
+                        method: "POST",
+
+                        headers: {
+
+                            "Accept":
+                                "application/json",
+
+                            "Content-Type":
+                                "application/json",
+
+                            "X-CSRF-TOKEN":
+                                csrfToken(),
+
+                            "X-Requested-With":
+                                "XMLHttpRequest"
+                        },
+
+                        body:
+                            JSON.stringify({
+                                name: name
+                            })
+                    }
+                )
+                .then(function (response) {
+
+                    return response.json()
+                        .then(function (data) {
+
+                            if (!response.ok) {
+
+                                throw new Error(
+                                    data.message ||
+                                    "Unable to add payment method."
+                                );
+                            }
+
+                            return data;
+                        });
+
+                })
+                .then(function (data) {
+
+                    toast(
+                        data.message
+                    );
+
+
+                    /*
+                    * Simplest and safest:
+                    * reload current page after add
+                    */
+                    window.location.reload();
+
+                })
+                .catch(function (error) {
+
+                    console.error(error);
+
+                    toast(
+                        error.message
+                    );
+
+                })
+                .finally(function () {
+
+                    button.disabled = false;
+
+                });
+
+            }
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Active / Inactive Toggle
+        |--------------------------------------------------------------------------
+        */
+
+        list.addEventListener(
+            "click",
+            function (event) {
+
+                var button =
+                    event.target.closest(
+                        ".payment-toggle"
+                    );
+
+
+                if (!button) {
+                    return;
+                }
+
+
+                var id =
+                    button.dataset.id;
+
+
+                button.disabled = true;
+
+
+                fetch(
+                    "/admin/payment-methods/" +
+                    id +
+                    "/toggle",
+                    {
+
+                        method: "POST",
+
+                        headers: {
+
+                            "Accept":
+                                "application/json",
+
+                            "Content-Type":
+                                "application/json",
+
+                            "X-CSRF-TOKEN":
+                                csrfToken(),
+
+                            "X-Requested-With":
+                                "XMLHttpRequest"
+                        }
+
+                    }
+                )
+                .then(function (response) {
+
+                    return response.json()
+                        .then(function (data) {
+
+                            if (!response.ok) {
+
+                                throw new Error(
+                                    data.message ||
+                                    "Unable to update payment method."
+                                );
+                            }
+
+                            return data;
+                        });
+
+                })
+                .then(function (data) {
+
+                    var active =
+                        Boolean(
+                            data.is_active
+                        );
+
+
+                    button.classList.toggle(
+                        "on",
+                        active
+                    );
+
+
+                    button.setAttribute(
+                        "aria-checked",
+                        String(active)
+                    );
+
+
+                    var card =
+                        button.closest(
+                            ".method"
+                        );
+
+
+                    var badge =
+                        $(".status-badge", card);
+
+
+                    if (badge) {
+
+                        badge.textContent =
+                            active
+                                ? "Active"
+                                : "Inactive";
+
+
+                        badge.className =
+                            "badge status-badge " +
+                            (
+                                active
+                                    ? "tone-green"
+                                    : "tone-red"
+                            );
+                    }
+
+
+                    toast(
+                        data.message
+                    );
+
+                })
+                .catch(function (error) {
+
+                    console.error(error);
+
+                    toast(
+                        error.message
+                    );
+
+                })
+                .finally(function () {
+
+                    button.disabled = false;
+
+                });
+
+            }
+        );
     }
 
     function initSubscriptions() {
