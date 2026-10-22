@@ -778,68 +778,685 @@
     }
 
     function initWorkplaces() {
-        var list = $("#list"),
-            modal = $("#modal");
-        function count(card) {
-            $(".company-head .small", card).textContent =
-                all(".branch", card).length + " branches";
+
+        var modal =
+            document.getElementById("workplace-modal");
+
+        var addButton =
+            document.getElementById("add-workplace-btn");
+
+        var cancelButton =
+            document.getElementById("workplace-cancel");
+
+        var saveButton =
+            document.getElementById("workplace-save");
+
+        var list =
+            document.getElementById("workplace-list");
+
+
+        if (!modal) {
+            return;
         }
-        function addBranch(card, address) {
-            var branch = cloneTemplate("branch-template");
-            $("span", branch).textContent = address;
-            card.insertBefore(branch, $(".inline-form", card));
-            count(card);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Open modal
+        |--------------------------------------------------------------------------
+        */
+
+        if (addButton) {
+
+            addButton.addEventListener(
+                "click",
+                function () {
+
+                    modal.classList.add("open");
+                }
+            );
+
         }
-        list.addEventListener("click", function (event) {
-            var button = event.target.closest("[data-remove]");
-            if (!button) return;
-            var card = button.closest(".card");
-            button.closest(".branch").remove();
-            count(card);
-        });
-        list.addEventListener("submit", function (event) {
-            event.preventDefault();
-            var input = $("input", event.target),
-                value = input.value.trim();
-            if (!value) return;
-            addBranch(event.target.closest(".card"), value);
-            input.value = "";
-            toast("Branch added");
-        });
-        function close() {
-            modal.classList.remove("open");
-            $("#add").focus();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Close modal
+        |--------------------------------------------------------------------------
+        */
+
+        if (cancelButton) {
+
+            cancelButton.addEventListener(
+                "click",
+                function () {
+
+                    modal.classList.remove("open");
+
+                }
+            );
+
         }
-        $("#add").addEventListener("click", function () {
-            modal.classList.add("open");
-            $("#cname").focus();
-        });
-        $("#cancel").addEventListener("click", close);
-        modal.addEventListener("click", function (event) {
-            if (event.target === modal) close();
-        });
-        $("#save").addEventListener("click", function () {
-            var name = $("#cname").value.trim(),
-                address = $("#cbranch").value.trim();
-            if (!name) {
-                $("#cname").focus();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Close when clicking backdrop
+        |--------------------------------------------------------------------------
+        */
+
+        modal.addEventListener(
+            "click",
+            function (event) {
+
+                if (event.target === modal) {
+
+                    modal.classList.remove("open");
+
+                }
+
+            }
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Save multiple branch
+        |--------------------------------------------------------------------------
+        */
+
+        list.addEventListener(
+        "click",
+        function (event) {
+
+            /*
+            |--------------------------------------------------------------------------
+            | Add another branch input
+            |--------------------------------------------------------------------------
+            */
+
+            var addMoreButton =
+                event.target.closest(
+                    ".add-more-inline-branch"
+                );
+
+            if (addMoreButton) {
+
+                var workplaceId =
+                    addMoreButton.dataset.id;
+
+                var wrapper =
+                    document.querySelector(
+                        '.inline-branch-inputs[data-id="' +
+                        workplaceId +
+                        '"]'
+                    );
+
+                if (!wrapper) {
+                    return;
+                }
+
+
+                var row =
+                    document.createElement("div");
+
+                row.className =
+                    "inline-branch-row";
+
+
+                row.innerHTML = `
+                    <input
+                        class="input branch-address-input"
+                        type="text"
+                        placeholder="New branch address"
+                        autocomplete="off"
+                    />
+
+                    <button
+                        type="button"
+                        class="btn btn-outline remove-inline-branch"
+                    >
+                        ×
+                    </button>
+                `;
+
+
+                wrapper.appendChild(row);
+
                 return;
             }
-            var card = cloneTemplate("company-template");
-            all(".branch", card).forEach(function (branch) {
-                branch.remove();
-            });
-            $("h2", card).textContent = name;
-            card.dataset.id = "company-" + Date.now();
-            card.classList.add("is-visible");
-            if (address) addBranch(card, address);
-            count(card);
-            list.appendChild(card);
-            $("#cname").value = "";
-            $("#cbranch").value = "";
-            close();
-            toast("Company added");
-        });
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Remove branch input
+            |--------------------------------------------------------------------------
+            */
+
+                var removeButton =
+                    event.target.closest(
+                        ".remove-inline-branch"
+                    );
+
+                if (removeButton) {
+
+                    var row =
+                        removeButton.closest(
+                            ".inline-branch-row"
+                        );
+
+                    if (row) {
+                        row.remove();
+                    }
+
+                    return;
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Save multiple branches
+                |--------------------------------------------------------------------------
+                */
+
+                var saveButton =
+                    event.target.closest(
+                        ".save-inline-branches"
+                    );
+
+                if (!saveButton) {
+                    return;
+                }
+
+
+                var workplaceId =
+                    saveButton.dataset.id;
+
+
+                var wrapper =
+                    document.querySelector(
+                        '.inline-branch-inputs[data-id="' +
+                        workplaceId +
+                        '"]'
+                    );
+
+
+                if (!wrapper) {
+                    return;
+                }
+
+
+                var inputs =
+                    wrapper.querySelectorAll(
+                        ".branch-address-input"
+                    );
+
+
+                var branches = [];
+
+
+                inputs.forEach(
+                    function (input) {
+
+                        var address =
+                            input.value.trim();
+
+                        if (address) {
+
+                            branches.push(
+                                address
+                            );
+
+                        }
+
+                    }
+                );
+
+
+                if (branches.length === 0) {
+
+                    toast(
+                        "Please enter at least one branch address."
+                    );
+
+                    return;
+                }
+
+
+                saveButton.disabled = true;
+
+
+                var csrf =
+                    document.querySelector(
+                        'meta[name="csrf-token"]'
+                    );
+
+
+                fetch(
+                    "/admin/workplaces/" +
+                    workplaceId +
+                    "/branches",
+                    {
+
+                        method: "POST",
+
+                        headers: {
+
+                            "Accept":
+                                "application/json",
+
+                            "Content-Type":
+                                "application/json",
+
+                            "X-CSRF-TOKEN":
+                                csrf
+                                    ? csrf.getAttribute(
+                                        "content"
+                                    )
+                                    : "",
+
+                            "X-Requested-With":
+                                "XMLHttpRequest"
+                        },
+
+                        body:
+                            JSON.stringify({
+                                branches: branches
+                            })
+
+                    }
+                )
+
+                .then(function (response) {
+
+                    return response
+                        .json()
+                        .then(function (data) {
+
+                            if (!response.ok) {
+
+                                throw new Error(
+                                    data.message ||
+                                    "Unable to add branches."
+                                );
+
+                            }
+
+                            return data;
+
+                        });
+
+                })
+
+                .then(function (data) {
+
+                    toast(
+                        data.message
+                    );
+
+                    window.location.reload();
+
+                })
+
+                .catch(function (error) {
+
+                    console.error(error);
+
+                    toast(
+                        error.message
+                    );
+
+                })
+
+                .finally(function () {
+
+                    saveButton.disabled = false;
+
+                });
+
+            }
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Save company
+        |--------------------------------------------------------------------------
+        */
+
+        if (saveButton) {
+
+            saveButton.addEventListener(
+                "click",
+                function () {
+
+                    var companyInput =
+                        document.getElementById(
+                            "company-name"
+                        );
+
+                    var branchInput =
+                        document.getElementById(
+                            "company-branch"
+                        );
+
+
+                    var companyName =
+                        companyInput.value.trim();
+
+                    var branchAddress =
+                        branchInput.value.trim();
+
+
+                    if (!companyName) {
+
+                        toast(
+                            "Please enter company name."
+                        );
+
+                        companyInput.focus();
+
+                        return;
+                    }
+
+
+                    if (!branchAddress) {
+
+                        toast(
+                            "Please enter first branch address."
+                        );
+
+                        branchInput.focus();
+
+                        return;
+                    }
+
+
+                    saveButton.disabled = true;
+
+
+                    var csrf =
+                        document.querySelector(
+                            'meta[name="csrf-token"]'
+                        );
+
+
+                    fetch(
+                        "/admin/workplaces",
+                        {
+
+                            method: "POST",
+
+                            headers: {
+
+                                "Accept":
+                                    "application/json",
+
+                                "Content-Type":
+                                    "application/json",
+
+                                "X-CSRF-TOKEN":
+                                    csrf
+                                        ? csrf.getAttribute(
+                                            "content"
+                                        )
+                                        : "",
+
+                                "X-Requested-With":
+                                    "XMLHttpRequest"
+
+                            },
+
+                            body: JSON.stringify({
+
+                                company_name:
+                                    companyName,
+
+                                branch_address:
+                                    branchAddress
+
+                            })
+
+                        }
+                    )
+
+                    .then(function (response) {
+
+                        return response
+                            .json()
+                            .then(function (data) {
+
+                                if (!response.ok) {
+
+                                    throw new Error(
+                                        data.message ||
+                                        "Unable to add company."
+                                    );
+
+                                }
+
+                                return data;
+
+                            });
+
+                    })
+
+                    .then(function (data) {
+
+                        toast(
+                            data.message
+                        );
+
+                        modal.style.display =
+                            "none";
+
+                        window.location.reload();
+
+                    })
+
+                    .catch(function (error) {
+
+                        console.error(error);
+
+                        toast(
+                            error.message
+                        );
+
+                    })
+
+                    .finally(function () {
+
+                        saveButton.disabled =
+                            false;
+
+                    });
+
+                }
+            );
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Delete Branch
+        |--------------------------------------------------------------------------
+        */
+        list.addEventListener(
+            "click",
+            function (event) {
+
+                var deleteButton =
+                    event.target.closest(
+                        ".delete-branch-btn"
+                    );
+
+
+                if (!deleteButton) {
+                    return;
+                }
+
+
+                event.preventDefault();
+
+
+                var branchId =
+                    deleteButton.dataset.id;
+
+
+                if (!branchId) {
+
+                    toast(
+                        "Branch id not found."
+                    );
+
+                    return;
+                }
+
+
+                if (
+                    !confirm(
+                        "Are you sure you want to delete this branch?"
+                    )
+                ) {
+                    return;
+                }
+
+
+                deleteButton.disabled = true;
+
+
+                var csrf =
+                    document.querySelector(
+                        'meta[name="csrf-token"]'
+                    );
+
+
+                fetch(
+                    "/admin/workplace-branches/" +
+                    branchId,
+                    {
+
+                        method: "DELETE",
+
+                        headers: {
+
+                            "Accept":
+                                "application/json",
+
+                            "X-CSRF-TOKEN":
+                                csrf
+                                    ? csrf.getAttribute(
+                                        "content"
+                                    )
+                                    : "",
+
+                            "X-Requested-With":
+                                "XMLHttpRequest"
+
+                        }
+
+                    }
+                )
+
+                .then(function (response) {
+
+                    return response
+                        .json()
+                        .then(function (data) {
+
+                            if (!response.ok) {
+
+                                throw new Error(
+                                    data.message ||
+                                    "Unable to delete branch."
+                                );
+
+                            }
+
+                            return data;
+
+                        });
+
+                })
+
+                .then(function (data) {
+
+                    toast(
+                        data.message
+                    );
+
+
+                    var branchRow =
+                        deleteButton.closest(
+                            ".branch"
+                        );
+
+
+                    var card =
+                        deleteButton.closest(
+                            "[data-workplace-id]"
+                        );
+
+
+                    if (branchRow) {
+
+                        branchRow.remove();
+
+                    }
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Update branch count
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if (card) {
+
+                        var countElement =
+                            card.querySelector(
+                                ".branch-count"
+                            );
+
+
+                        var remainingBranches =
+                            card.querySelectorAll(
+                                ".branch-list .branch"
+                            ).length;
+
+
+                        if (countElement) {
+
+                            countElement.textContent =
+                                remainingBranches +
+                                (
+                                    remainingBranches === 1
+                                        ? " branch"
+                                        : " branches"
+                                );
+
+                        }
+
+                    }
+
+                })
+
+                .catch(function (error) {
+
+                    console.error(error);
+
+                    toast(
+                        error.message
+                    );
+
+                    deleteButton.disabled =
+                        false;
+
+                });
+
+            }
+        );
+
     }
 
     function initPayments() {

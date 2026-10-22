@@ -180,9 +180,9 @@
             </p>
 
             <a
-                class="nav-link"
-                href="#"
-                title="Workplaces"
+                class="nav-link
+                {{ request()->routeIs('admin.workplaces.*') ? 'active' : '' }}"
+                href="{{ route('admin.workplaces.index') }}"
             >
                 <svg
                     aria-hidden="true"
@@ -241,8 +241,9 @@
             </p>
 
             <a
-                class="nav-link"
-                href="#"
+                class="nav-link
+                {{ request()->routeIs('admin.trips.*') ? 'active' : '' }}"
+                href="{{ route('admin.trips.index') }}"
                 title="Trips"
             >
                 <svg
@@ -286,9 +287,9 @@
 
 
             <a
-                class="nav-link"
-                href="#"
-                title="Trip Transactions"
+                class="nav-link
+                {{ request()->routeIs('admin.trip-transactions.*') ? 'active' : '' }}"
+                href="{{ route('admin.trip-transactions.index') }}"
             >
                 <svg
                     aria-hidden="true"
@@ -296,8 +297,10 @@
                     viewBox="0 0 24 24"
                 >
                     <path
-                        d="M6 3h12M6 8h12M6 13l8.5 8M6 13h3a5 5 0 0 0 0-10"
+                        d="M4 2v20l3-2 3 2 2-2 2 2 3-2 3 2V2l-3 2-3-2-2 2-2-2-3 2z"
                     ></path>
+
+                    <path d="M8 8h8M8 12h8M8 16h5"></path>
                 </svg>
 
                 <span>Trip Transactions</span>

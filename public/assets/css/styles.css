@@ -1053,6 +1053,21 @@ td .sub {
     margin-top: 8px;
 }
 
+/*********** add branch *********/
+.inline-branch-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.inline-branch-row .input {
+    flex: 1;
+}
+
+.inline-branch-row .btn {
+    min-width: 42px;
+}
+
 /* ---------- Toast ---------- */
 
 .toast {
