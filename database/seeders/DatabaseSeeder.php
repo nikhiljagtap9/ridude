@@ -23,7 +23,8 @@ class DatabaseSeeder extends Seeder
         // ]);
 
         $this->call([
-          //  PaymentMethodSeeder::class,
+            PaymentMethodSeeder::class,
+            SubscriptionPlanSeeder::class,
             AdminUserSeeder::class,
             FareLevelSeeder:: class
         ]);
