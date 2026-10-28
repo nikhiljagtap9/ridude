@@ -10,6 +10,7 @@
                 <th>Trips</th>
                 <th>Status</th>
                 <th>Joined</th>
+                <th>Actions</th>
             </tr>
         </thead>
 
@@ -84,12 +85,24 @@
                         )->format('d M Y') }}
                     </td>
 
+                    <td>
+
+                        <button
+                            type="button"
+                            class="btn btn-outline rider-view-btn"
+                            data-id="{{ $rider->id }}"
+                        >
+                            View Details
+                        </button>
+
+                    </td>
+
                 </tr>
 
             @empty
 
                 <tr>
-                    <td colspan="6" style="text-align:center;">
+                    <td colspan="7" style="text-align:center;">
                         No riders found.
                     </td>
                 </tr>

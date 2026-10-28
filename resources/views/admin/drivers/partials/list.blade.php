@@ -137,6 +137,13 @@
 
                 {{-- Actions --}}
                 <td class="actions">
+                    <button
+                        type="button"
+                        class="btn btn-outline driver-view-btn"
+                        data-id="{{ $driver->id }}"
+                    >
+                        View Details
+                    </button>
 
                     @if(
                         $driver->status !==

@@ -231,6 +231,100 @@ class DriverController extends Controller
     }
 
 
+    public function details(int $id)
+    {
+        $driver = DB::table('users')
+            ->leftJoin(
+                'driver_profiles',
+                'driver_profiles.user_id',
+                '=',
+                'users.id'
+            )
+            ->leftJoin(
+                'driver_vehicles',
+                'driver_vehicles.user_id',
+                '=',
+                'users.id'
+            )
+            ->where('users.id', $id)
+            ->where('users.role', 'driver')
+            ->select([
+                'users.id',
+                'users.full_name',
+                'users.email',
+                'users.country_code',
+                'users.phone_number',
+                'users.status',
+                'users.created_at',
+
+                'driver_profiles.date_of_birth',
+                'driver_profiles.gender',
+                'driver_profiles.address',
+                'driver_profiles.city',
+                'driver_profiles.state',
+                'driver_profiles.zip_code',
+                'driver_profiles.profile_photo',
+
+                'driver_vehicles.car_make',
+                'driver_vehicles.car_model',
+                'driver_vehicles.car_year',
+                'driver_vehicles.car_color',
+                'driver_vehicles.license_plate_number',
+                'driver_vehicles.front_photo',
+                'driver_vehicles.back_photo',
+            ])
+            ->first();
+
+
+        if (!$driver) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Driver not found.',
+            ], 404);
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Documents
+        |--------------------------------------------------------------------------
+        */
+
+        $documents = DB::table('driver_documents')
+            ->where('user_id', $id)
+            ->get();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Payment Methods
+        |--------------------------------------------------------------------------
+        */
+
+        $paymentMethods = DB::table('driver_payment_methods as dpm')
+            ->join(
+                'payment_methods as pm',
+                'pm.id',
+                '=',
+                'dpm.payment_method_id'
+            )
+            ->where('dpm.user_id', $id)
+            ->where('pm.is_active', 1)
+            ->orderBy('pm.name')
+            ->pluck('pm.name');
+
+
+        return view(
+            'admin.drivers.partials.details',
+            compact(
+                'driver',
+                'documents',
+                'paymentMethods'
+            )
+        );
+    }
+
+
     public function updateStatus(
         Request $request,
         int $id

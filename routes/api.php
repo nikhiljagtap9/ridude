@@ -34,7 +34,6 @@ Route::post('/login', [
 ]);
 
 
-
 /*
 |--------------------------------------------------------------------------
 | Authenticated APIs
@@ -46,6 +45,8 @@ Route::middleware('auth:sanctum')->group(function () {
         AuthController::class,
         'logout'
     ]);
+
+   
 
 });
 
@@ -101,16 +102,6 @@ Route::middleware('auth:sanctum')
         );
 
         Route::get(
-            '/available-trips',
-            [RiderTripController::class, 'availableTrips']
-        );
-
-        Route::post(
-            '/trips/{tripId}/reserve',
-            [RiderTripController::class, 'reserve']
-        );
-
-        Route::get(
             '/my-trips',
             [RiderTripController::class, 'myTrips']
         );
@@ -123,6 +114,14 @@ Route::middleware('auth:sanctum')
         Route::post(
             '/trips/{tripId}/cancel',
             [RiderTripController::class, 'cancel']
+        );
+
+        Route::post(
+            '/ride-request',
+            [
+                RiderTripController::class,
+                'requestRide'
+            ]
         );
 });
 

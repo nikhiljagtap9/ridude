@@ -64,6 +64,177 @@ Manage driver applications and approvals
     color: #6b7280;
 }
 
+
+.driver-details-modal {
+    max-width: 900px;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 24px;
+    position: relative;
+}
+
+.driver-modal-close {
+    position: absolute;
+    right: 20px;
+    top: 16px;
+
+    width: 34px;
+    height: 34px;
+
+    border: 0;
+    background: transparent;
+
+    font-size: 26px;
+    line-height: 1;
+
+    cursor: pointer;
+    color: #52627a;
+}
+
+.driver-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 8px;
+}
+
+.driver-detail-avatar {
+    width: 48px;
+    height: 48px;
+
+    border-radius: 50%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: #d9ecff;
+    color: #1167f2;
+
+    font-weight: 700;
+}
+
+.driver-detail-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.driver-detail-name h2 {
+    margin: 0;
+}
+
+.driver-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 14px;
+}
+
+.driver-detail-section {
+    border: 1px solid #dce5f2;
+    border-radius: 16px;
+    padding: 16px;
+    background: #f8fbff;
+}
+
+.driver-detail-section.full {
+    grid-column: 1 / -1;
+}
+
+.driver-detail-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #52698d;
+    margin-bottom: 14px;
+}
+
+.driver-info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 15px;
+}
+
+.driver-info-grid.cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.driver-info-item {
+    min-width: 0;
+}
+
+.driver-info-label {
+    display: block;
+    font-size: 13px;
+    color: #71819b;
+    margin-bottom: 3px;
+}
+
+.driver-info-value {
+    color: #002264;
+    font-size: 14px;
+    font-weight: 500;
+
+    overflow-wrap: anywhere;
+}
+
+.document-badges,
+.payment-method-badges {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.document-chip,
+.payment-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+
+    padding: 5px 10px;
+
+    border-radius: 999px;
+
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.document-chip.uploaded {
+    background: #dcfce7;
+    color: #16a34a;
+    border: 1px solid #9be6ad;
+}
+
+.document-chip.missing {
+    background: #fee2e2;
+    color: #ef4444;
+    border: 1px solid #f5aaaa;
+}
+
+.payment-chip {
+    background: #e7f1ff;
+    color: #1167f2;
+    border: 1px solid #a7cbff;
+}
+
+.driver-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+@media (max-width: 768px) {
+
+    .driver-detail-grid,
+    .driver-info-grid,
+    .driver-info-grid.cols-3 {
+        grid-template-columns: 1fr;
+    }
+
+}
+
 </style>
 
 
@@ -358,6 +529,41 @@ Manage driver applications and approvals
 
     </div>
 
+</div>
+
+
+<!-- modal container -->
+<div
+    class="modal-backdrop"
+    id="driver-details-modal"
+>
+    <div
+        class="modal driver-details-modal"
+    >
+
+        <button
+            type="button"
+            class="driver-modal-close"
+            id="driver-modal-close"
+            aria-label="Close"
+        >
+            ×
+        </button>
+
+        <div id="driver-details-content">
+
+            <div
+                style="
+                    padding:40px;
+                    text-align:center;
+                "
+            >
+                Loading...
+            </div>
+
+        </div>
+
+    </div>
 </div>
 
 @endsection

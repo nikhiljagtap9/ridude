@@ -59,6 +59,173 @@
     opacity: 0.4;
     cursor: not-allowed;
 }
+
+
+.rider-details-modal {
+    max-width: 650px;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 24px;
+    position: relative;
+}
+
+.rider-modal-close {
+    position: absolute;
+    right: 20px;
+    top: 14px;
+
+    width: 34px;
+    height: 34px;
+
+    border: 0;
+    background: transparent;
+
+    font-size: 26px;
+    color: #52627a;
+
+    cursor: pointer;
+}
+
+.rider-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+
+    margin-bottom: 8px;
+}
+
+.rider-detail-avatar {
+    width: 48px;
+    height: 48px;
+
+    border-radius: 50%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: #d9ecff;
+    color: #1167f2;
+
+    font-weight: 700;
+}
+
+.rider-detail-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.rider-detail-name h2 {
+    margin: 0;
+}
+
+.rider-detail-grid {
+    display: grid;
+    gap: 14px;
+    margin-top: 14px;
+}
+
+.rider-detail-section {
+    border: 1px solid #dce5f2;
+    border-radius: 16px;
+
+    padding: 16px;
+
+    background: #f8fbff;
+}
+
+.rider-detail-title {
+    font-size: 13px;
+    font-weight: 700;
+
+    text-transform: uppercase;
+
+    color: #52698d;
+
+    margin-bottom: 14px;
+}
+
+.rider-info-grid {
+    display: grid;
+    grid-template-columns: repeat(
+        2,
+        minmax(0, 1fr)
+    );
+
+    gap: 15px;
+}
+
+.rider-info-grid.cols-3 {
+    grid-template-columns: repeat(
+        3,
+        minmax(0, 1fr)
+    );
+}
+
+.rider-info-item {
+    min-width: 0;
+}
+
+.rider-info-label {
+    display: block;
+
+    font-size: 13px;
+
+    color: #71819b;
+
+    margin-bottom: 3px;
+}
+
+.rider-info-value {
+    color: #002264;
+
+    font-size: 14px;
+    font-weight: 500;
+
+    overflow-wrap: anywhere;
+}
+
+.rider-document-badges {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.rider-document-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+
+    padding: 5px 10px;
+
+    border-radius: 999px;
+
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.rider-document-chip.uploaded {
+    background: #dcfce7;
+    color: #16a34a;
+    border: 1px solid #9be6ad;
+}
+
+.rider-document-chip.missing {
+    background: #fee2e2;
+    color: #ef4444;
+    border: 1px solid #f5aaaa;
+}
+
+@media (max-width: 768px) {
+
+    .rider-info-grid,
+    .rider-info-grid.cols-3 {
+        grid-template-columns: 1fr;
+    }
+
+}
 </style>    
 
 <div class="card reveal">
@@ -96,6 +263,42 @@
 
     </div>
 
+</div>
+
+<!-- model -->
+
+<div
+    class="modal-backdrop"
+    id="rider-details-modal"
+>
+    <div
+        class="modal rider-details-modal"
+    >
+
+        <button
+            type="button"
+            class="rider-modal-close"
+            id="rider-modal-close"
+            aria-label="Close"
+        >
+            ×
+        </button>
+
+
+        <div id="rider-details-content">
+
+            <div
+                style="
+                    padding:50px;
+                    text-align:center;
+                "
+            >
+                Loading...
+            </div>
+
+        </div>
+
+    </div>
 </div>
 
 @endsection

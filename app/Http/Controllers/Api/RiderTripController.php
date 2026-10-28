@@ -4,426 +4,222 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class RiderTripController extends Controller
 {
-    public function availableTrips(Request $request)
-    {
-        $user = $request->user();
+    /*
+    |--------------------------------------------------------------------------
+    | Submit Ride Request
+    |--------------------------------------------------------------------------
+    */
 
-        if ($user->role !== 'rider') {
-
-            return response()->json([
-                'status' => false,
-                'message' => 'Rider access only.'
-            ], 403);
-        }
-
-
-        $request->validate([
-
-            'date' => [
-                'required',
-                'date'
-            ],
-
-            'direction' => [
-                'required',
-                Rule::in([
-                    'home_to_work',
-                    'work_to_home'
-                ])
-            ]
-
-        ]);
-
-
-        $trips = DB::table('trips as t')
-
-            ->join(
-                'users as driver',
-                'driver.id',
-                '=',
-                't.driver_id'
-            )
-
-            ->leftJoin(
-                'driver_profiles as dp',
-                'dp.user_id',
-                '=',
-                'driver.id'
-            )
-
-            ->where(
-                't.trip_date',
-                $request->date
-            )
-
-            ->where(
-                't.direction',
-                $request->direction
-            )
-
-            ->where(
-                't.status',
-                'scheduled'
-            )
-
-            ->select(
-                't.*',
-                'driver.full_name as driver_name',
-                'dp.profile_photo as driver_photo'
-            )
-
-            ->get();
-
-
-        foreach ($trips as $trip) {
-
-            $bookedSeats = DB::table('trip_riders')
-
-                ->where(
-                    'trip_id',
-                    $trip->id
-                )
-
-                ->where(
-                    'booking_status',
-                    'confirmed'
-                )
-
-                ->count();
-
-
-            $trip->seats_filled =
-                $bookedSeats;
-
-            $trip->seats_remaining =
-                max(
-                    0,
-                    $trip->available_seats
-                    - $bookedSeats
-                );
-        }
-
-
-        return response()->json([
-            'status' => true,
-            'data' => $trips
-        ]);
-    }
-
-    public function reserve(Request $request,int $tripId) 
-    {
+    public function requestRide(
+        Request $request
+    ) {
         try {
 
-            $user = $request->user();
-
-            if ($user->role !== 'rider') {
-
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Rider access only.'
-                ], 403);
-            }
+            $user =
+                $request->user();
 
 
             $request->validate([
 
+                'trip_date' => [
+                    'required',
+                    'date',
+                    'after_or_equal:today',
+                ],
+
+                'direction' => [
+                    'required',
+                    'in:home_to_work,work_to_home',
+                ],
+
                 'pickup_address' => [
                     'required',
                     'string',
-                    'max:255'
+                    'max:255',
                 ],
 
                 'pickup_latitude' => [
-                    'nullable',
-                    'numeric'
+                    'required',
+                    'numeric',
+                    'between:-90,90',
                 ],
 
                 'pickup_longitude' => [
-                    'nullable',
-                    'numeric'
+                    'required',
+                    'numeric',
+                    'between:-180,180',
                 ],
 
                 'dropoff_address' => [
                     'required',
                     'string',
-                    'max:255'
+                    'max:255',
                 ],
 
                 'dropoff_latitude' => [
-                    'nullable',
-                    'numeric'
+                    'required',
+                    'numeric',
+                    'between:-90,90',
                 ],
 
                 'dropoff_longitude' => [
-                    'nullable',
-                    'numeric'
+                    'required',
+                    'numeric',
+                    'between:-180,180',
                 ],
-
             ]);
 
 
-            DB::beginTransaction();
-
-
             /*
-            * Lock trip while booking
+            |--------------------------------------------------------------------------
+            | Duplicate Request
+            |--------------------------------------------------------------------------
             */
-            $trip = DB::table('trips')
 
-                ->where(
-                    'id',
-                    $tripId
+            $existing =
+                DB::table(
+                    'trip_riders'
                 )
 
-                ->lockForUpdate()
-
-                ->first();
-
-
-            if (!$trip) {
-
-                DB::rollBack();
-
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Trip not found.'
-                ], 404);
-            }
-
-
-            if ($trip->status !== 'scheduled') {
-
-                DB::rollBack();
-
-                return response()->json([
-                    'status' => false,
-                    'message' =>
-                        'This trip is no longer available.'
-                ], 422);
-            }
-
-
-            /*
-            * Already reserved?
-            */
-            $alreadyBooked = DB::table(
-                'trip_riders'
-            )
-                ->where(
-                    'trip_id',
-                    $tripId
-                )
                 ->where(
                     'rider_id',
                     $user->id
                 )
+
+                ->where(
+                    'requested_trip_date',
+                    $request->trip_date
+                )
+
+                ->where(
+                    'requested_direction',
+                    $request->direction
+                )
+
+                ->whereIn(
+                    'allocation_status',
+                    [
+                        'pending',
+                        'allocated',
+                        'finalized',
+                    ]
+                )
+
                 ->where(
                     'booking_status',
                     '!=',
                     'cancelled'
                 )
-                ->exists();
-
-
-            if ($alreadyBooked) {
-
-                DB::rollBack();
-
-                return response()->json([
-                    'status' => false,
-                    'message' =>
-                        'You already reserved this trip.'
-                ], 422);
-            }
-
-
-            /*
-            * One day at a time rule
-            *
-            * Rider cannot have another confirmed trip
-            * of same direction/date.
-            */
-            $existingTrip = DB::table(
-                'trip_riders as tr'
-            )
-
-                ->join(
-                    'trips as t',
-                    't.id',
-                    '=',
-                    'tr.trip_id'
-                )
-
-                ->where(
-                    'tr.rider_id',
-                    $user->id
-                )
-
-                ->where(
-                    'tr.booking_status',
-                    'confirmed'
-                )
-
-                ->where(
-                    't.trip_date',
-                    $trip->trip_date
-                )
-
-                ->where(
-                    't.direction',
-                    $trip->direction
-                )
 
                 ->exists();
 
 
-            if ($existingTrip) {
-
-                DB::rollBack();
+            if ($existing) {
 
                 return response()->json([
                     'status' => false,
+
                     'message' =>
-                        'You already have a reservation for this trip direction on this date.'
+                        'You already have a ride request for this date and direction.',
                 ], 422);
             }
 
 
             /*
-            * Seat count
+            |--------------------------------------------------------------------------
+            | Create Pending Request
+            |--------------------------------------------------------------------------
             */
-            $bookedSeats = DB::table(
-                'trip_riders'
-            )
 
-                ->where(
-                    'trip_id',
-                    $tripId
+            $tripRiderId =
+                DB::table(
+                    'trip_riders'
                 )
+                ->insertGetId([
 
-                ->where(
-                    'booking_status',
-                    'confirmed'
-                )
+                    'trip_id' =>
+                        null,
 
-                ->count();
+                    'rider_id' =>
+                        $user->id,
 
+                    'requested_trip_date' =>
+                        $request->trip_date,
 
-            if (
-                $bookedSeats
-                >= $trip->available_seats
-            ) {
+                    'requested_direction' =>
+                        $request->direction,
 
-                DB::rollBack();
+                    'pickup_address' =>
+                        $request->pickup_address,
 
-                return response()->json([
-                    'status' => false,
-                    'message' =>
-                        'No seats available for this trip.'
-                ], 422);
-            }
+                    'pickup_latitude' =>
+                        $request->pickup_latitude,
 
+                    'pickup_longitude' =>
+                        $request->pickup_longitude,
 
-            /*
-            * Next stop order
-            */
-            $nextStop = DB::table(
-                'trip_riders'
-            )
-                ->where(
-                    'trip_id',
-                    $tripId
-                )
-                ->max('stop_order');
+                    'dropoff_address' =>
+                        $request->dropoff_address,
 
+                    'dropoff_latitude' =>
+                        $request->dropoff_latitude,
 
-            $nextStop =
-                ((int) $nextStop) + 1;
+                    'dropoff_longitude' =>
+                        $request->dropoff_longitude,
 
+                    'stop_order' =>
+                        0,
 
-            /*
-            * Save booking
-            */
-            $tripRiderId = DB::table(
-                'trip_riders'
-            )->insertGetId([
+                    'booking_status' =>
+                        'confirmed',
 
-                'trip_id' =>
-                    $tripId,
+                    'ride_status' =>
+                        'waiting',
 
-                'rider_id' =>
-                    $user->id,
+                    'fare_amount' =>
+                        0,
 
-                'pickup_address' =>
-                    $request->pickup_address,
+                    'allocation_status' =>
+                        'pending',
 
-                'pickup_latitude' =>
-                    $request->pickup_latitude,
+                    'allocation_type' =>
+                        'auto',
 
-                'pickup_longitude' =>
-                    $request->pickup_longitude,
+                    'allocated_at' =>
+                        null,
 
-                'dropoff_address' =>
-                    $request->dropoff_address,
+                    'created_at' =>
+                        now(),
 
-                'dropoff_latitude' =>
-                    $request->dropoff_latitude,
-
-                'dropoff_longitude' =>
-                    $request->dropoff_longitude,
-
-                'stop_order' =>
-                    $nextStop,
-
-                'booking_status' =>
-                    'confirmed',
-
-                'ride_status' =>
-                    'waiting',
-
-                /*
-                * Fare from trip DB
-                */
-                'fare_amount' =>
-                    $trip->fare_per_rider,
-
-                'confirmed_at' =>
-                    now(),
-
-                'created_at' =>
-                    now(),
-
-                'updated_at' =>
-                    now(),
-            ]);
-
-
-            DB::commit();
+                    'updated_at' =>
+                        now(),
+                ]);
 
 
             return response()->json([
                 'status' => true,
 
                 'message' =>
-                    'Trip reserved successfully.',
+                    'Ride request submitted successfully.',
 
                 'data' => [
+
                     'trip_rider_id' =>
                         $tripRiderId,
 
-                    'trip_id' =>
-                        $tripId,
+                    'allocation_status' =>
+                        'pending',
 
-                    'fare' =>
-                        $trip->fare_per_rider,
+                    'trip_date' =>
+                        $request->trip_date,
 
-                    'status' =>
-                        'confirmed'
+                    'direction' =>
+                        $request->direction,
                 ]
 
             ], 201);
@@ -431,46 +227,47 @@ class RiderTripController extends Controller
 
         } catch (Throwable $e) {
 
-            if (DB::transactionLevel() > 0) {
-                DB::rollBack();
-            }
-
-
             return response()->json([
                 'status' => false,
+
                 'message' =>
-                    'Unable to reserve trip.',
+                    'Unable to submit ride request.',
+
                 'error' =>
-                    $e->getMessage()
+                    $e->getMessage(),
+
             ], 500);
         }
     }
 
-    public function myTrips(Request $request)
-    {
-        $user = $request->user();
 
-        if ($user->role !== 'rider') {
+    /*
+    |--------------------------------------------------------------------------
+    | My Ride Requests / Trips
+    |--------------------------------------------------------------------------
+    */
 
-            return response()->json([
-                'status' => false,
-                'message' => 'Rider access only.'
-            ], 403);
-        }
+    public function myTrips(
+        Request $request
+    ) {
+
+        $user =
+            $request->user();
 
 
-        $baseQuery = DB::table(
-            'trip_riders as tr'
-        )
+        $trips =
+            DB::table(
+                'trip_riders as tr'
+            )
 
-            ->join(
+            ->leftJoin(
                 'trips as t',
                 't.id',
                 '=',
                 'tr.trip_id'
             )
 
-            ->join(
+            ->leftJoin(
                 'users as driver',
                 'driver.id',
                 '=',
@@ -490,104 +287,81 @@ class RiderTripController extends Controller
             )
 
             ->select(
+
                 'tr.id as trip_rider_id',
+
+                'tr.requested_trip_date',
+
+                'tr.requested_direction',
+
+                'tr.allocation_status',
+
                 'tr.booking_status',
+
                 'tr.ride_status',
-                'tr.fare_amount',
+
                 'tr.pickup_address',
+
                 'tr.dropoff_address',
 
+                'tr.distance_miles',
+
+                'tr.pickup_distance_from_route',
+
+                'tr.fare_amount',
+
+                'tr.allocated_at',
+
                 't.id as trip_id',
-                't.direction',
+
                 't.trip_date',
+
+                't.direction',
+
                 't.departure_time',
+
                 't.status as trip_status',
-                't.available_seats',
 
                 'driver.id as driver_id',
+
                 'driver.full_name as driver_name',
 
                 'dp.profile_photo as driver_photo'
-            );
-
-
-        $all = $baseQuery
-            ->orderBy(
-                't.trip_date',
-                'desc'
             )
+
+            ->orderByDesc(
+                'tr.created_at'
+            )
+
             ->get();
-
-
-        $upcoming = [];
-        $completed = [];
-        $cancelled = [];
-
-
-        foreach ($all as $trip) {
-
-            if (
-                $trip->booking_status
-                === 'cancelled'
-            ) {
-
-                $cancelled[] = $trip;
-
-            } elseif (
-                $trip->booking_status
-                === 'completed'
-                || $trip->trip_status
-                === 'completed'
-            ) {
-
-                $completed[] = $trip;
-
-            } else {
-
-                $upcoming[] = $trip;
-            }
-        }
 
 
         return response()->json([
             'status' => true,
-
-            'data' => [
-                'upcoming' =>
-                    $upcoming,
-
-                'completed' =>
-                    $completed,
-
-                'cancelled' =>
-                    $cancelled,
-
-                'counts' => [
-                    'upcoming' =>
-                        count($upcoming),
-
-                    'completed' =>
-                        count($completed),
-
-                    'cancelled' =>
-                        count($cancelled),
-                ]
-            ]
+            'data' => $trips,
         ]);
     }
 
-    /**
-     * Trip Details
-     *   Route on Map
-     * So no separate map API is required.
-     */
-    public function tripDetail(Request $request,int $tripId) 
-    {
-        $user = $request->user();
 
-        $trip = DB::table(
-            'trip_riders as tr'
-        )
+    /*
+    |--------------------------------------------------------------------------
+    | Allocated Trip Detail
+    |--------------------------------------------------------------------------
+    */
+
+    public function tripDetail(
+        Request $request,
+        int $tripId
+    ) {
+
+        $user =
+            $request->user();
+
+
+        $trip =
+            DB::table(
+                'trip_riders as tr'
+            )
 
             ->join(
                 'trips as t',
@@ -628,19 +402,31 @@ class RiderTripController extends Controller
             )
 
             ->select(
+
                 't.*',
 
                 'tr.id as trip_rider_id',
+
                 'tr.booking_status',
+
+                'tr.allocation_status',
+
                 'tr.fare_amount',
+
+                'tr.distance_miles',
+
+                'tr.pickup_distance_from_route',
 
                 'driver.full_name as driver_name',
 
                 'dp.profile_photo as driver_photo',
 
                 'dv.car_make',
+
                 'dv.car_model',
+
                 'dv.car_color',
+
                 'dv.license_plate_number'
             )
 
@@ -651,17 +437,22 @@ class RiderTripController extends Controller
 
             return response()->json([
                 'status' => false,
-                'message' => 'Trip not found.'
+                'message' =>
+                    'Trip not found.',
             ], 404);
         }
 
 
         /*
-        * All Rider stops
+        |--------------------------------------------------------------------------
+        | Rider Stops
+        |--------------------------------------------------------------------------
         */
-        $stops = DB::table(
-            'trip_riders as tr'
-        )
+
+        $stops =
+            DB::table(
+                'trip_riders as tr'
+            )
 
             ->join(
                 'users as rider',
@@ -680,17 +471,32 @@ class RiderTripController extends Controller
                 'confirmed'
             )
 
+            ->whereIn(
+                'tr.allocation_status',
+                [
+                    'allocated',
+                    'finalized',
+                ]
+            )
+
             ->orderBy(
                 'tr.stop_order'
             )
 
             ->select(
+
                 'tr.id',
+
                 'tr.stop_order',
+
                 'tr.pickup_address',
+
                 'tr.pickup_latitude',
+
                 'tr.pickup_longitude',
+
                 'tr.estimated_pickup_time',
+
                 'rider.full_name as rider_name'
             )
 
@@ -698,11 +504,15 @@ class RiderTripController extends Controller
 
 
         /*
-        * Accepted payment options
+        |--------------------------------------------------------------------------
+        | Driver Payment Methods
+        |--------------------------------------------------------------------------
         */
-        $paymentMethods = DB::table(
-            'driver_payment_methods as dpm'
-        )
+
+        $paymentMethods =
+            DB::table(
+                'driver_payment_methods as dpm'
+            )
 
             ->join(
                 'payment_methods as pm',
@@ -731,23 +541,6 @@ class RiderTripController extends Controller
             ->get();
 
 
-        $seatsFilled = DB::table(
-            'trip_riders'
-        )
-
-            ->where(
-                'trip_id',
-                $tripId
-            )
-
-            ->where(
-                'booking_status',
-                'confirmed'
-            )
-
-            ->count();
-
-
         return response()->json([
             'status' => true,
 
@@ -756,39 +549,49 @@ class RiderTripController extends Controller
                 'trip' =>
                     $trip,
 
-                'seats_filled' =>
-                    $seatsFilled,
-
                 'stops' =>
                     $stops,
 
                 'payment_methods' =>
-                    $paymentMethods
+                    $paymentMethods,
             ]
         ]);
     }
 
-    public function cancel(Request $request,int $tripId) 
-    {
-        $user = $request->user();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cancel Rider Request / Allocation
+    |--------------------------------------------------------------------------
+    */
+
+    public function cancelRequest(
+        Request $request,
+        int $tripRiderId
+    ) {
+
+        $user =
+            $request->user();
 
 
         $request->validate([
+
             'reason' => [
                 'nullable',
                 'string',
-                'max:500'
-            ]
+                'max:500',
+            ],
         ]);
 
 
-        $booking = DB::table(
-            'trip_riders'
-        )
+        $booking =
+            DB::table(
+                'trip_riders'
+            )
 
             ->where(
-                'trip_id',
-                $tripId
+                'id',
+                $tripRiderId
             )
 
             ->where(
@@ -798,7 +601,8 @@ class RiderTripController extends Controller
 
             ->where(
                 'booking_status',
-                'confirmed'
+                '!=',
+                'cancelled'
             )
 
             ->first();
@@ -809,41 +613,47 @@ class RiderTripController extends Controller
             return response()->json([
                 'status' => false,
                 'message' =>
-                    'Active booking not found.'
+                    'Ride request not found.',
             ], 404);
         }
 
 
-        DB::table('trip_riders')
+        DB::table(
+            'trip_riders'
+        )
 
-            ->where(
-                'id',
-                $booking->id
-            )
+        ->where(
+            'id',
+            $tripRiderId
+        )
 
-            ->update([
+        ->update([
 
-                'booking_status' =>
-                    'cancelled',
+            'booking_status' =>
+                'cancelled',
 
-                'cancelled_at' =>
-                    now(),
+            'allocation_status' =>
+                'cancelled',
 
-                'cancelled_by' =>
-                    'rider',
+            'cancelled_at' =>
+                now(),
 
-                'cancel_reason' =>
-                    $request->reason,
+            'cancelled_by' =>
+                'rider',
 
-                'updated_at' =>
-                    now(),
-            ]);
+            'cancel_reason' =>
+                $request->reason,
+
+            'updated_at' =>
+                now(),
+        ]);
 
 
         return response()->json([
             'status' => true,
+
             'message' =>
-                'Trip cancelled successfully.'
+                'Ride request cancelled successfully.',
         ]);
     }
 }

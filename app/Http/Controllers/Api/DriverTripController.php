@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\DriverRouteService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -11,19 +12,36 @@ use Throwable;
 
 class DriverTripController extends Controller
 {
-    public function saveCommutePlan(Request $request)
+    public function saveCommutePlan(
+        Request $request,
+        DriverRouteService $routeService
+    )
     {
         try {
 
             $user = $request->user();
 
+
+            /*
+            |--------------------------------------------------------------------------
+            | Driver Check
+            |--------------------------------------------------------------------------
+            */
+
             if ($user->role !== 'driver') {
+
                 return response()->json([
                     'status' => false,
                     'message' => 'Driver access only.'
                 ], 403);
             }
 
+
+            /*
+            |--------------------------------------------------------------------------
+            | Validation
+            |--------------------------------------------------------------------------
+            */
 
             $request->validate([
 
@@ -34,13 +52,13 @@ class DriverTripController extends Controller
                 ],
 
                 'home_latitude' => [
-                    'nullable',
+                    'required',
                     'numeric',
                     'between:-90,90'
                 ],
 
                 'home_longitude' => [
-                    'nullable',
+                    'required',
                     'numeric',
                     'between:-180,180'
                 ],
@@ -59,13 +77,13 @@ class DriverTripController extends Controller
                 ],
 
                 'workplace_latitude' => [
-                    'nullable',
+                    'required',
                     'numeric',
                     'between:-90,90'
                 ],
 
                 'workplace_longitude' => [
-                    'nullable',
+                    'required',
                     'numeric',
                     'between:-180,180'
                 ],
@@ -97,8 +115,78 @@ class DriverTripController extends Controller
             ]);
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | Calculate HOME -> WORK Route
+            |--------------------------------------------------------------------------
+            */
+
+            $homeToWorkRoute = $routeService->calculate(
+
+                (float) $request->home_latitude,
+
+                (float) $request->home_longitude,
+
+                (float) $request->workplace_latitude,
+
+                (float) $request->workplace_longitude
+            );
+
+
+            if (!$homeToWorkRoute['status']) {
+
+                return response()->json([
+                    'status' => false,
+                    'message' =>
+                        $homeToWorkRoute['message']
+                        ?? 'Unable to calculate Home to Work route.'
+                ], 422);
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Calculate WORK -> HOME Route
+            |--------------------------------------------------------------------------
+            */
+
+            $workToHomeRoute = $routeService->calculate(
+
+                (float) $request->workplace_latitude,
+
+                (float) $request->workplace_longitude,
+
+                (float) $request->home_latitude,
+
+                (float) $request->home_longitude
+            );
+
+
+            if (!$workToHomeRoute['status']) {
+
+                return response()->json([
+                    'status' => false,
+                    'message' =>
+                        $workToHomeRoute['message']
+                        ?? 'Unable to calculate Work to Home route.'
+                ], 422);
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Start Transaction
+            |--------------------------------------------------------------------------
+            */
+
             DB::beginTransaction();
 
+
+            /*
+            |--------------------------------------------------------------------------
+            | Seats
+            |--------------------------------------------------------------------------
+            */
 
             $seats = $request->available_seats
                 ?? config(
@@ -108,8 +196,11 @@ class DriverTripController extends Controller
 
 
             /*
-             * Save settings
-             */
+            |--------------------------------------------------------------------------
+            | Save Driver Commute Settings
+            |--------------------------------------------------------------------------
+            */
+
             DB::table(
                 'driver_commute_settings'
             )->updateOrInsert(
@@ -159,23 +250,27 @@ class DriverTripController extends Controller
                     'updated_at' =>
                         now(),
 
-                    'created_at' =>
-                        now(),
                 ]
             );
 
 
             /*
-             * Home -> Work
-             *
-             * Example:
-             * Shift starts 8:00
-             * trip starts 7:15
-             */
-            $homeToWorkTime = Carbon::createFromFormat(
-                'H:i',
-                $request->shift_start_time
-            )
+            |--------------------------------------------------------------------------
+            | HOME -> WORK Departure Time
+            |--------------------------------------------------------------------------
+            |
+            | Example:
+            | Shift Start = 08:00
+            | Lead = 45 Minutes
+            | Trip Start = 07:15
+            |
+            */
+
+            $homeToWorkTime =
+                Carbon::createFromFormat(
+                    'H:i',
+                    $request->shift_start_time
+                )
                 ->subMinutes(
                     config(
                         'ridude.home_to_work_lead_minutes',
@@ -186,16 +281,22 @@ class DriverTripController extends Controller
 
 
             /*
-             * Work -> Home
-             *
-             * Example:
-             * Shift ends 5:00
-             * trip starts 5:10
-             */
-            $workToHomeTime = Carbon::createFromFormat(
-                'H:i',
-                $request->shift_end_time
-            )
+            |--------------------------------------------------------------------------
+            | WORK -> HOME Departure Time
+            |--------------------------------------------------------------------------
+            |
+            | Example:
+            | Shift End = 17:00
+            | Delay = 10 Minutes
+            | Trip Start = 17:10
+            |
+            */
+
+            $workToHomeTime =
+                Carbon::createFromFormat(
+                    'H:i',
+                    $request->shift_end_time
+                )
                 ->addMinutes(
                     config(
                         'ridude.work_to_home_delay_minutes',
@@ -206,8 +307,11 @@ class DriverTripController extends Controller
 
 
             /*
-             * Create HOME -> WORK
-             */
+            |--------------------------------------------------------------------------
+            | Create / Update HOME -> WORK Trip
+            |--------------------------------------------------------------------------
+            */
+
             DB::table('trips')->updateOrInsert(
 
                 [
@@ -225,6 +329,11 @@ class DriverTripController extends Controller
                     'departure_time' =>
                         $homeToWorkTime,
 
+
+                    /*
+                    * Start
+                    */
+
                     'start_name' =>
                         'Home',
 
@@ -236,6 +345,11 @@ class DriverTripController extends Controller
 
                     'start_longitude' =>
                         $request->home_longitude,
+
+
+                    /*
+                    * Destination
+                    */
 
                     'destination_name' =>
                         $request->workplace_name
@@ -250,14 +364,48 @@ class DriverTripController extends Controller
                     'destination_longitude' =>
                         $request->workplace_longitude,
 
+
+                    /*
+                    * Seats
+                    */
+
                     'available_seats' =>
                         $seats,
 
-                    'fare_per_rider' =>
-                        config(
-                            'ridude.default_fare_per_rider',
-                            12.40
-                        ),
+
+                    /*
+                    * Existing Fare Field
+                    *
+                    * We will eventually use rider-wise
+                    * fare from trip_riders.
+                    */
+
+                    'fare_per_rider' => 0,
+
+
+                    /*
+                    * Driver Route Information
+                    */
+
+                    'estimated_distance' =>
+                        $homeToWorkRoute[
+                            'distance_miles'
+                        ],
+
+                    'estimated_duration_minutes' =>
+                        $homeToWorkRoute[
+                            'duration_minutes'
+                        ],
+
+                    'route_polyline' =>
+                        $homeToWorkRoute[
+                            'polyline'
+                        ] ?? null,
+
+
+                    /*
+                    * Status
+                    */
 
                     'status' =>
                         'scheduled',
@@ -272,8 +420,11 @@ class DriverTripController extends Controller
 
 
             /*
-             * Create WORK -> HOME
-             */
+            |--------------------------------------------------------------------------
+            | Create / Update WORK -> HOME Trip
+            |--------------------------------------------------------------------------
+            */
+
             DB::table('trips')->updateOrInsert(
 
                 [
@@ -291,6 +442,11 @@ class DriverTripController extends Controller
                     'departure_time' =>
                         $workToHomeTime,
 
+
+                    /*
+                    * Start
+                    */
+
                     'start_name' =>
                         $request->workplace_name
                         ?? 'Work',
@@ -304,6 +460,11 @@ class DriverTripController extends Controller
                     'start_longitude' =>
                         $request->workplace_longitude,
 
+
+                    /*
+                    * Destination
+                    */
+
                     'destination_name' =>
                         'Home',
 
@@ -316,14 +477,45 @@ class DriverTripController extends Controller
                     'destination_longitude' =>
                         $request->home_longitude,
 
+
+                    /*
+                    * Seats
+                    */
+
                     'available_seats' =>
                         $seats,
 
-                    'fare_per_rider' =>
-                        config(
-                            'ridude.default_fare_per_rider',
-                            12.40
-                        ),
+
+                    /*
+                    * Existing Fare Field
+                    */
+
+                    'fare_per_rider' => 0,
+
+
+                    /*
+                    * Driver Route Information
+                    */
+
+                    'estimated_distance' =>
+                        $workToHomeRoute[
+                            'distance_miles'
+                        ],
+
+                    'estimated_duration_minutes' =>
+                        $workToHomeRoute[
+                            'duration_minutes'
+                        ],
+
+                    'route_polyline' =>
+                        $workToHomeRoute[
+                            'polyline'
+                        ] ?? null,
+
+
+                    /*
+                    * Status
+                    */
 
                     'status' =>
                         'scheduled',
@@ -337,28 +529,86 @@ class DriverTripController extends Controller
             );
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | Commit
+            |--------------------------------------------------------------------------
+            */
+
             DB::commit();
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | Get Created Trips
+            |--------------------------------------------------------------------------
+            */
+
             $trips = DB::table('trips')
+
                 ->where(
                     'driver_id',
                     $user->id
                 )
+
                 ->where(
                     'trip_date',
                     $request->commute_date
                 )
-                ->orderBy('departure_time')
+
+                ->orderBy(
+                    'departure_time'
+                )
+
                 ->get();
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | Response
+            |--------------------------------------------------------------------------
+            */
+
             return response()->json([
                 'status' => true,
+
                 'message' =>
                     'Commute plan saved successfully.',
+
                 'data' => [
-                    'trips' => $trips
+
+                    'trips' =>
+                        $trips,
+
+                    /*
+                    * Helpful testing information
+                    */
+
+                    'home_to_work_route' => [
+
+                        'distance_miles' =>
+                            $homeToWorkRoute[
+                                'distance_miles'
+                            ],
+
+                        'duration_minutes' =>
+                            $homeToWorkRoute[
+                                'duration_minutes'
+                            ],
+                    ],
+
+                    'work_to_home_route' => [
+
+                        'distance_miles' =>
+                            $workToHomeRoute[
+                                'distance_miles'
+                            ],
+
+                        'duration_minutes' =>
+                            $workToHomeRoute[
+                                'duration_minutes'
+                            ],
+                    ],
                 ]
             ]);
 
@@ -367,22 +617,33 @@ class DriverTripController extends Controller
 
             return response()->json([
                 'status' => false,
-                'message' => 'Validation failed.',
-                'errors' => $e->errors()
+
+                'message' =>
+                    'Validation failed.',
+
+                'errors' =>
+                    $e->errors()
             ], 422);
 
 
         } catch (Throwable $e) {
 
-            if (DB::transactionLevel() > 0) {
+            if (
+                DB::transactionLevel() > 0
+            ) {
+
                 DB::rollBack();
             }
 
+
             return response()->json([
                 'status' => false,
+
                 'message' =>
                     'Unable to save commute plan.',
-                'error' => $e->getMessage()
+
+                'error' =>
+                    $e->getMessage()
             ], 500);
         }
     }
@@ -479,7 +740,7 @@ class DriverTripController extends Controller
                 'tr.id as trip_rider_id',
                 'rider.id as rider_id',
                 'rider.full_name',
-                'rp.photo_id',
+                'rp.profile_photo',
                 'tr.pickup_address',
                 'tr.pickup_latitude',
                 'tr.pickup_longitude',

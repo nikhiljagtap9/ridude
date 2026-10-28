@@ -159,6 +159,21 @@
         var input = $("#q");
         var container = $("#rider-list-area");
 
+        var riderModal =
+            document.getElementById(
+                "rider-details-modal"
+            );
+
+        var riderContent =
+            document.getElementById(
+                "rider-details-content"
+            );
+
+        var riderClose =
+            document.getElementById(
+                "rider-modal-close"
+            );
+
         if (!input || !container) {
             return;
         }
@@ -332,6 +347,173 @@
             }
         );
 
+        /**
+        * Detail view
+        */
+
+        document.addEventListener(
+            "click",
+            function (event) {
+
+                var button =
+                    event.target.closest(
+                        ".rider-view-btn"
+                    );
+
+
+                if (!button) {
+                    return;
+                }
+
+
+                event.preventDefault();
+
+
+                var riderId =
+                    button.dataset.id;
+
+
+                if (!riderId) {
+                    return;
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Open Modal
+                |--------------------------------------------------------------------------
+                */
+
+                riderModal.classList.add(
+                    "open"
+                );
+
+
+                riderContent.innerHTML = `
+                    <div
+                        style="
+                            padding:50px;
+                            text-align:center;
+                        "
+                    >
+                        Loading rider details...
+                    </div>
+                `;
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Get Details
+                |--------------------------------------------------------------------------
+                */
+
+                fetch(
+                    "/admin/riders/" +
+                    riderId +
+                    "/details",
+                    {
+
+                        headers: {
+
+                            "X-Requested-With":
+                                "XMLHttpRequest",
+
+                            "Accept":
+                                "text/html"
+
+                        }
+
+                    }
+                )
+
+                .then(function (response) {
+
+                    if (!response.ok) {
+
+                        throw new Error(
+                            "Unable to load rider details."
+                        );
+
+                    }
+
+
+                    return response.text();
+
+                })
+
+                .then(function (html) {
+
+                    riderContent.innerHTML =
+                        html;
+
+                })
+
+                .catch(function (error) {
+
+                    console.error(
+                        error
+                    );
+
+
+                    riderContent.innerHTML = `
+                        <div
+                            style="
+                                padding:40px;
+                                text-align:center;
+                            "
+                        >
+                            Unable to load rider details.
+                        </div>
+                    `;
+
+                });
+
+            }
+        );
+
+        /**
+        *  close model
+        */
+        if (riderClose) {
+
+            riderClose.addEventListener(
+                "click",
+                function () {
+
+                    riderModal.classList.remove(
+                        "open"
+                    );
+
+                }
+            );
+
+        }
+
+         /**
+        *  Close by clicking outside model
+        */
+        if (riderModal) {
+
+            riderModal.addEventListener(
+                "click",
+                function (event) {
+
+                    if (
+                        event.target ===
+                        riderModal
+                    ) {
+
+                        riderModal.classList.remove(
+                            "open"
+                        );
+
+                    }
+
+                }
+            );
+
+        }
+
     }
 
     function initDrivers() {
@@ -347,6 +529,21 @@
 
         var tabs =
             $("#driver-tabs");
+
+        var driverModal =
+            document.getElementById(
+                "driver-details-modal"
+            );
+
+        var driverContent =
+            document.getElementById(
+                "driver-details-content"
+            );
+
+        var driverClose =
+            document.getElementById(
+                "driver-modal-close"
+            );    
 
         if (
             !container ||
@@ -592,6 +789,150 @@
 
             }
         );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | View Details
+        |--------------------------------------------------------------------------
+        */
+
+        document.addEventListener(
+            "click",
+            function (event) {
+
+                var viewButton =
+                    event.target.closest(
+                        ".driver-view-btn"
+                    );
+
+
+                if (!viewButton) {
+                    return;
+                }
+
+
+                var driverId =
+                    viewButton.dataset.id;
+
+
+                if (!driverId) {
+                    return;
+                }
+
+
+                driverModal.classList.add(
+                    "open"
+                );
+
+
+                driverContent.innerHTML = `
+                    <div
+                        style="
+                            padding:50px;
+                            text-align:center;
+                        "
+                    >
+                        Loading driver details...
+                    </div>
+                `;
+
+
+                fetch(
+                    "/admin/drivers/" +
+                    driverId +
+                    "/details",
+                    {
+                        headers: {
+                            "X-Requested-With":
+                                "XMLHttpRequest",
+
+                            "Accept":
+                                "text/html"
+                        }
+                    }
+                )
+
+                .then(function (response) {
+
+                    if (!response.ok) {
+
+                        throw new Error(
+                            "Unable to load driver details."
+                        );
+
+                    }
+
+                    return response.text();
+
+                })
+
+                .then(function (html) {
+
+                    driverContent.innerHTML =
+                        html;
+
+                })
+
+                .catch(function (error) {
+
+                    console.error(error);
+
+                    driverContent.innerHTML = `
+                        <div
+                            style="
+                                padding:40px;
+                                text-align:center;
+                            "
+                        >
+                            Unable to load driver details.
+                        </div>
+                    `;
+
+                });
+
+            }
+        );
+
+
+        /** cloase model */
+        if (driverClose) {
+
+                driverClose.addEventListener(
+                    "click",
+                    function () {
+
+                        driverModal.classList.remove(
+                            "open"
+                        );
+
+                    }
+                );
+
+        }
+
+
+        if (driverModal) {
+
+            driverModal.addEventListener(
+                "click",
+                function (event) {
+
+                    if (
+                        event.target ===
+                        driverModal
+                    ) {
+
+                        driverModal.classList.remove(
+                            "open"
+                        );
+
+                    }
+
+                }
+            );
+
+        }
 
 
         /*
@@ -1461,16 +1802,78 @@
 
     function initPayments() {
 
+        /*
+        |--------------------------------------------------------------------------
+        | Elements
+        |--------------------------------------------------------------------------
+        */
+
         var form =
-            $("#payment-method-form");
+            document.getElementById(
+                "payment-method-form"
+            );
+
 
         var list =
-            $("#payment-method-list");
+            document.getElementById(
+                "payment-method-list"
+            );
 
-        if (!form || !list) {
-            return;
-        }
 
+        var addButton =
+            document.getElementById(
+                "add-payment-method-btn"
+            );
+
+
+        var input =
+            document.getElementById(
+                "mname"
+            );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Edit Modal
+        |--------------------------------------------------------------------------
+        */
+
+        var editModal =
+            document.getElementById(
+                "payment-edit-modal"
+            );
+
+
+        var editId =
+            document.getElementById(
+                "edit-payment-id"
+            );
+
+
+        var editName =
+            document.getElementById(
+                "edit-payment-name"
+            );
+
+
+        var editCancel =
+            document.getElementById(
+                "edit-payment-cancel"
+            );
+
+
+        var editSave =
+            document.getElementById(
+                "edit-payment-save"
+            );
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | CSRF
+        |--------------------------------------------------------------------------
+        */
 
         function csrfToken() {
 
@@ -1479,10 +1882,15 @@
                     'meta[name="csrf-token"]'
                 );
 
+
             return token
-                ? token.getAttribute("content")
+                ? token.getAttribute(
+                    "content"
+                )
                 : "";
+
         }
+
 
 
         /*
@@ -1491,256 +1899,1501 @@
         |--------------------------------------------------------------------------
         */
 
-        form.addEventListener(
-            "submit",
-            function (event) {
+        if (form) {
 
-                event.preventDefault();
+            form.addEventListener(
+                "submit",
+                function (event) {
 
-
-                var input =
-                    $("#mname");
-
-                var button =
-                    $("#add-payment-method-btn");
-
-                var name =
-                    input.value.trim();
+                    event.preventDefault();
 
 
-                if (!name) {
-
-                    input.focus();
-
-                    toast(
-                        "Please enter payment method name."
-                    );
-
-                    return;
-                }
+                    var name =
+                        input.value.trim();
 
 
-                button.disabled = true;
+                    if (!name) {
+
+                        toast(
+                            "Please enter payment method name."
+                        );
 
 
-                fetch(
-                    form.action ||
-                    window.location.pathname,
-                    {
+                        input.focus();
 
-                        method: "POST",
+                        return;
 
-                        headers: {
-
-                            "Accept":
-                                "application/json",
-
-                            "Content-Type":
-                                "application/json",
-
-                            "X-CSRF-TOKEN":
-                                csrfToken(),
-
-                            "X-Requested-With":
-                                "XMLHttpRequest"
-                        },
-
-                        body:
-                            JSON.stringify({
-                                name: name
-                            })
                     }
-                )
-                .then(function (response) {
 
-                    return response.json()
-                        .then(function (data) {
 
-                            if (!response.ok) {
+                    addButton.disabled =
+                        true;
 
-                                throw new Error(
-                                    data.message ||
-                                    "Unable to add payment method."
+
+                    fetch(
+                        form.action,
+                        {
+
+                            method: "POST",
+
+                            headers: {
+
+                                "Accept":
+                                    "application/json",
+
+                                "Content-Type":
+                                    "application/json",
+
+                                "X-CSRF-TOKEN":
+                                    csrfToken(),
+
+                                "X-Requested-With":
+                                    "XMLHttpRequest"
+
+                            },
+
+
+                            body:
+                                JSON.stringify({
+
+                                    name:
+                                        name
+
+                                })
+
+                        }
+                    )
+
+                    .then(
+                        function (response) {
+
+                            return response
+                                .json()
+                                .then(
+                                    function (data) {
+
+                                        if (
+                                            !response.ok
+                                        ) {
+
+                                            throw new Error(
+                                                data.message ||
+                                                "Unable to add payment method."
+                                            );
+
+                                        }
+
+
+                                        return data;
+
+                                    }
                                 );
-                            }
 
-                            return data;
-                        });
+                        }
+                    )
 
-                })
-                .then(function (data) {
+                    .then(
+                        function (data) {
 
-                    toast(
-                        data.message
+                            toast(
+                                data.message
+                            );
+
+
+                            /*
+                            * Refresh because pagination
+                            * and sort order may change.
+                            */
+
+                            window.location.reload();
+
+                        }
+                    )
+
+                    .catch(
+                        function (error) {
+
+                            console.error(
+                                error
+                            );
+
+
+                            toast(
+                                error.message
+                            );
+
+                        }
+                    )
+
+                    .finally(
+                        function () {
+
+                            addButton.disabled =
+                                false;
+
+                        }
                     );
 
+                }
+            );
 
-                    /*
-                    * Simplest and safest:
-                    * reload current page after add
-                    */
-                    window.location.reload();
+        }
 
-                })
-                .catch(function (error) {
-
-                    console.error(error);
-
-                    toast(
-                        error.message
-                    );
-
-                })
-                .finally(function () {
-
-                    button.disabled = false;
-
-                });
-
-            }
-        );
 
 
         /*
         |--------------------------------------------------------------------------
-        | Active / Inactive Toggle
+        | Card Actions
         |--------------------------------------------------------------------------
         */
 
-        list.addEventListener(
-            "click",
-            function (event) {
+        if (list) {
 
-                var button =
-                    event.target.closest(
-                        ".payment-toggle"
-                    );
+            list.addEventListener(
+                "click",
+                function (event) {
 
 
-                if (!button) {
-                    return;
-                }
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Toggle
+                    |--------------------------------------------------------------------------
+                    */
+
+                    var toggleButton =
+                        event.target.closest(
+                            ".payment-toggle"
+                        );
 
 
-                var id =
-                    button.dataset.id;
+                    if (toggleButton) {
+
+                        event.preventDefault();
 
 
-                button.disabled = true;
+                        var toggleId =
+                            toggleButton
+                                .dataset
+                                .id;
 
 
-                fetch(
-                    "/admin/payment-methods/" +
-                    id +
-                    "/toggle",
-                    {
-
-                        method: "POST",
-
-                        headers: {
-
-                            "Accept":
-                                "application/json",
-
-                            "Content-Type":
-                                "application/json",
-
-                            "X-CSRF-TOKEN":
-                                csrfToken(),
-
-                            "X-Requested-With":
-                                "XMLHttpRequest"
+                        if (!toggleId) {
+                            return;
                         }
 
-                    }
-                )
-                .then(function (response) {
 
-                    return response.json()
-                        .then(function (data) {
+                        toggleButton.disabled =
+                            true;
 
-                            if (!response.ok) {
 
-                                throw new Error(
-                                    data.message ||
-                                    "Unable to update payment method."
+                        fetch(
+                            "/admin/payment-methods/" +
+                            toggleId +
+                            "/toggle",
+                            {
+
+                                method:
+                                    "POST",
+
+                                headers: {
+
+                                    "Accept":
+                                        "application/json",
+
+                                    "Content-Type":
+                                        "application/json",
+
+                                    "X-CSRF-TOKEN":
+                                        csrfToken(),
+
+                                    "X-Requested-With":
+                                        "XMLHttpRequest"
+
+                                }
+
+                            }
+                        )
+
+                        .then(
+                            function (response) {
+
+                                return response
+                                    .json()
+                                    .then(
+                                        function (data) {
+
+                                            if (
+                                                !response.ok
+                                            ) {
+
+                                                throw new Error(
+                                                    data.message ||
+                                                    "Unable to update payment method."
+                                                );
+
+                                            }
+
+
+                                            return data;
+
+                                        }
+                                    );
+
+                            }
+                        )
+
+                        .then(
+                            function (data) {
+
+                                var active =
+                                    Boolean(
+                                        data.is_active
+                                    );
+
+
+                                /*
+                                * Toggle class
+                                */
+
+                                toggleButton
+                                    .classList
+                                    .toggle(
+                                        "on",
+                                        active
+                                    );
+
+
+                                toggleButton
+                                    .setAttribute(
+                                        "aria-checked",
+                                        String(active)
+                                    );
+
+
+                                /*
+                                * Status badge
+                                */
+
+                                var card =
+                                    toggleButton.closest(
+                                        ".method"
+                                    );
+
+
+                                if (card) {
+
+                                    var badge =
+                                        card.querySelector(
+                                            ".status-badge"
+                                        );
+
+
+                                    if (badge) {
+
+                                        badge.textContent =
+                                            active
+                                                ? "Active"
+                                                : "Inactive";
+
+
+                                        badge.className =
+                                            "badge status-badge " +
+                                            (
+                                                active
+                                                    ? "tone-green"
+                                                    : "tone-red"
+                                            );
+
+                                    }
+
+                                }
+
+
+                                toast(
+                                    data.message
                                 );
+
+                            }
+                        )
+
+                        .catch(
+                            function (error) {
+
+                                console.error(
+                                    error
+                                );
+
+
+                                toast(
+                                    error.message
+                                );
+
+                            }
+                        )
+
+                        .finally(
+                            function () {
+
+                                toggleButton.disabled =
+                                    false;
+
+                            }
+                        );
+
+
+                        return;
+
+                    }
+
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Edit
+                    |--------------------------------------------------------------------------
+                    */
+
+                    var editButton =
+                        event.target.closest(
+                            ".payment-method-edit"
+                        );
+
+
+                    if (editButton) {
+
+                        event.preventDefault();
+
+
+                        editId.value =
+                            editButton
+                                .dataset
+                                .id;
+
+
+                        editName.value =
+                            editButton
+                                .dataset
+                                .name ||
+                            "";
+
+
+                        editModal
+                            .classList
+                            .add(
+                                "open"
+                            );
+
+
+                        setTimeout(
+                            function () {
+
+                                editName.focus();
+
+                                editName.select();
+
+                            },
+                            100
+                        );
+
+
+                        return;
+
+                    }
+
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Delete
+                    |--------------------------------------------------------------------------
+                    */
+
+                    var deleteButton =
+                        event.target.closest(
+                            ".payment-method-delete"
+                        );
+
+
+                    if (!deleteButton) {
+                        return;
+                    }
+
+
+                    event.preventDefault();
+
+
+                    var deleteId =
+                        deleteButton
+                            .dataset
+                            .id;
+
+
+                    if (!deleteId) {
+                        return;
+                    }
+
+
+                    var confirmed =
+                        confirm(
+                            "Are you sure you want to delete this payment method?"
+                        );
+
+
+                    if (!confirmed) {
+                        return;
+                    }
+
+
+                    deleteButton.disabled =
+                        true;
+
+
+                    fetch(
+                        "/admin/payment-methods/" +
+                        deleteId,
+                        {
+
+                            method:
+                                "DELETE",
+
+                            headers: {
+
+                                "Accept":
+                                    "application/json",
+
+                                "X-CSRF-TOKEN":
+                                    csrfToken(),
+
+                                "X-Requested-With":
+                                    "XMLHttpRequest"
+
                             }
 
-                            return data;
-                        });
+                        }
+                    )
 
-                })
-                .then(function (data) {
+                    .then(
+                        function (response) {
 
-                    var active =
-                        Boolean(
-                            data.is_active
-                        );
+                            return response
+                                .json()
+                                .then(
+                                    function (data) {
 
+                                        if (
+                                            !response.ok
+                                        ) {
 
-                    button.classList.toggle(
-                        "on",
-                        active
-                    );
+                                            throw new Error(
+                                                data.message ||
+                                                "Unable to delete payment method."
+                                            );
 
-
-                    button.setAttribute(
-                        "aria-checked",
-                        String(active)
-                    );
-
-
-                    var card =
-                        button.closest(
-                            ".method"
-                        );
+                                        }
 
 
-                    var badge =
-                        $(".status-badge", card);
+                                        return data;
 
+                                    }
+                                );
 
-                    if (badge) {
+                        }
+                    )
 
-                        badge.textContent =
-                            active
-                                ? "Active"
-                                : "Inactive";
+                    .then(
+                        function (data) {
 
-
-                        badge.className =
-                            "badge status-badge " +
-                            (
-                                active
-                                    ? "tone-green"
-                                    : "tone-red"
+                            toast(
+                                data.message
                             );
+
+
+                            /*
+                            * Reload because current page
+                            * may become empty after delete.
+                            */
+
+                            window.location.reload();
+
+                        }
+                    )
+
+                    .catch(
+                        function (error) {
+
+                            console.error(
+                                error
+                            );
+
+
+                            toast(
+                                error.message
+                            );
+
+
+                            deleteButton.disabled =
+                                false;
+
+                        }
+                    );
+
+                }
+            );
+
+        }
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Update Payment Method
+        |--------------------------------------------------------------------------
+        */
+
+        if (editSave) {
+
+            editSave.addEventListener(
+                "click",
+                function () {
+
+
+                    var id =
+                        editId.value;
+
+
+                    var name =
+                        editName
+                            .value
+                            .trim();
+
+
+                    if (!id) {
+
+                        toast(
+                            "Payment method not found."
+                        );
+
+                        return;
+
                     }
 
 
-                    toast(
-                        data.message
+                    if (!name) {
+
+                        toast(
+                            "Please enter payment method name."
+                        );
+
+
+                        editName.focus();
+
+                        return;
+
+                    }
+
+
+                    editSave.disabled =
+                        true;
+
+
+                    fetch(
+                        "/admin/payment-methods/" +
+                        id +
+                        "/update",
+                        {
+
+                            method:
+                                "POST",
+
+                            headers: {
+
+                                "Accept":
+                                    "application/json",
+
+                                "Content-Type":
+                                    "application/json",
+
+                                "X-CSRF-TOKEN":
+                                    csrfToken(),
+
+                                "X-Requested-With":
+                                    "XMLHttpRequest"
+
+                            },
+
+
+                            body:
+                                JSON.stringify({
+
+                                    name:
+                                        name
+
+                                })
+
+                        }
+                    )
+
+                    .then(
+                        function (response) {
+
+                            return response
+                                .json()
+                                .then(
+                                    function (data) {
+
+                                        if (
+                                            !response.ok
+                                        ) {
+
+                                            throw new Error(
+                                                data.message ||
+                                                "Unable to update payment method."
+                                            );
+
+                                        }
+
+
+                                        return data;
+
+                                    }
+                                );
+
+                        }
+                    )
+
+                    .then(
+                        function (data) {
+
+                            toast(
+                                data.message
+                            );
+
+
+                            editModal
+                                .classList
+                                .remove(
+                                    "open"
+                                );
+
+
+                            window.location.reload();
+
+                        }
+                    )
+
+                    .catch(
+                        function (error) {
+
+                            console.error(
+                                error
+                            );
+
+
+                            toast(
+                                error.message
+                            );
+
+                        }
+                    )
+
+                    .finally(
+                        function () {
+
+                            editSave.disabled =
+                                false;
+
+                        }
                     );
 
-                })
-                .catch(function (error) {
+                }
+            );
 
-                    console.error(error);
+        }
 
-                    toast(
-                        error.message
-                    );
 
-                })
-                .finally(function () {
 
-                    button.disabled = false;
+        /*
+        |--------------------------------------------------------------------------
+        | Cancel Edit
+        |--------------------------------------------------------------------------
+        */
 
-                });
+        if (editCancel) {
+
+            editCancel.addEventListener(
+                "click",
+                function () {
+
+                    editModal
+                        .classList
+                        .remove(
+                            "open"
+                        );
+
+                }
+            );
+
+        }
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Click Outside Modal
+        |--------------------------------------------------------------------------
+        */
+
+        if (editModal) {
+
+            editModal.addEventListener(
+                "click",
+                function (event) {
+
+                    if (
+                        event.target ===
+                        editModal
+                    ) {
+
+                        editModal
+                            .classList
+                            .remove(
+                                "open"
+                            );
+
+                    }
+
+                }
+            );
+
+        }
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Escape Key
+        |--------------------------------------------------------------------------
+        */
+
+        document.addEventListener(
+            "keydown",
+            function (event) {
+
+                if (
+                    event.key ===
+                    "Escape"
+                ) {
+
+                    if (
+                        editModal &&
+                        editModal
+                            .classList
+                            .contains(
+                                "open"
+                            )
+                    ) {
+
+                        editModal
+                            .classList
+                            .remove(
+                                "open"
+                            );
+
+                    }
+
+                }
 
             }
         );
+
+    }
+
+    function initFareCalculations() {
+
+        var modal =
+            document.getElementById(
+                "fare-level-modal"
+            );
+
+
+        var cards =
+            document.getElementById(
+                "fare-levels"
+            );
+
+
+        var cancelButton =
+            document.getElementById(
+                "fare-modal-cancel"
+            );
+
+
+        var saveButton =
+            document.getElementById(
+                "fare-modal-save"
+            );
+
+
+        var idInput =
+            document.getElementById(
+                "fare-level-id"
+            );
+
+
+        var levelNameDisplay =
+            document.getElementById(
+                "fare-level-name-display"
+            );
+
+
+        var rangeDisplay =
+            document.getElementById(
+                "fare-range-display"
+            );
+
+
+        var baseInput =
+            document.getElementById(
+                "fare-base-price"
+            );
+
+
+        var rateInput =
+            document.getElementById(
+                "fare-price-mile"
+            );
+
+
+        var distanceInput =
+            document.getElementById(
+                "fare-distance"
+            );
+
+
+        var previewValue =
+            document.getElementById(
+                "fare-preview-value"
+            );
+
+
+        var previewLevel =
+            document.getElementById(
+                "fare-preview-level"
+            );
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | CSRF
+        |--------------------------------------------------------------------------
+        */
+
+        function csrfToken() {
+
+            var token =
+                document.querySelector(
+                    'meta[name="csrf-token"]'
+                );
+
+
+            return token
+                ? token.getAttribute(
+                    "content"
+                )
+                : "";
+
+        }
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Money Formatter
+        |--------------------------------------------------------------------------
+        */
+
+        function money(value) {
+
+            return new Intl.NumberFormat(
+                "en-US",
+                {
+                    style:
+                        "currency",
+
+                    currency:
+                        "USD"
+                }
+            ).format(value);
+
+        }
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Find Fare Level
+        |--------------------------------------------------------------------------
+        */
+
+        function findFareLevel(
+            miles
+        ) {
+
+            var levels =
+                window.fareLevels || [];
+
+
+            if (
+                miles >= 0.10 &&
+                miles <= 5.00
+            ) {
+
+                return levels.find(
+                    function (level) {
+
+                        return Number(
+                            level.level_no
+                        ) === 1;
+
+                    }
+                );
+
+            }
+
+
+            if (
+                miles >= 5.01 &&
+                miles <= 10.00
+            ) {
+
+                return levels.find(
+                    function (level) {
+
+                        return Number(
+                            level.level_no
+                        ) === 2;
+
+                    }
+                );
+
+            }
+
+
+            if (
+                miles > 10.00
+            ) {
+
+                return levels.find(
+                    function (level) {
+
+                        return Number(
+                            level.level_no
+                        ) === 3;
+
+                    }
+                );
+
+            }
+
+
+            return null;
+
+        }
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Calculate Fare
+        |--------------------------------------------------------------------------
+        */
+
+        function calculateFare(
+            miles
+        ) {
+
+            var level =
+                findFareLevel(
+                    miles
+                );
+
+
+            if (!level) {
+
+                return {
+                    fare: 0,
+                    level: null
+                };
+
+            }
+
+
+            var base =
+                Number(
+                    level.base_price
+                );
+
+
+            var rate =
+                Number(
+                    level.price_per_mile
+                );
+
+            // Fare = $ fixed amount charged for pickup + ($ amount/mile x distance).
+            // Case 1:
+            //     Distance for rider A is 5.5 miles:
+            //     Fare for rider A will be calculated as follows 
+
+            //     Fare = $0.75 + (5.5 x $ 1.00)
+            //     Fare = $ 6.25
+
+            // Case 2:
+            //     Distance for rider B is 7.8 miles:
+            //     Fare for rider B will be calculated as follows 
+
+            //     Fare =$0.75 + (7.8 x $1.00)
+            //     Fare =$8.55
+
+            var fare =
+                base +
+                (
+                    miles *
+                    rate
+                );
+
+
+            return {
+                fare:
+                    Math.round(
+                        fare * 100
+                    ) / 100,
+
+                level:
+                    level
+            };
+
+        }
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Preview
+        |--------------------------------------------------------------------------
+        */
+
+        function preview() {
+
+            if (
+                !distanceInput ||
+                !previewValue
+            ) {
+                return;
+            }
+
+
+            var miles =
+                Number(
+                    distanceInput.value
+                );
+
+
+            if (
+                distanceInput.value === "" ||
+                !Number.isFinite(
+                    miles
+                ) ||
+                miles <= 0
+            ) {
+
+                previewValue.textContent =
+                    "$0.00";
+
+
+                if (previewLevel) {
+
+                    previewLevel.textContent =
+                        "";
+
+                }
+
+                return;
+            }
+
+
+            var calculation =
+                calculateFare(
+                    miles
+                );
+
+
+            previewValue.textContent =
+                money(
+                    calculation.fare
+                );
+
+
+            if (previewLevel) {
+
+                if (
+                    calculation.level
+                ) {
+
+                    previewLevel.textContent =
+                        calculation
+                            .level
+                            .level_name;
+
+                } else {
+
+                    previewLevel.textContent =
+                        "No fare level";
+
+                }
+
+            }
+
+        }
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Open Edit Modal
+        |--------------------------------------------------------------------------
+        */
+
+        if (cards) {
+
+            cards.addEventListener(
+                "click",
+                function (event) {
+
+                    var button =
+                        event.target.closest(
+                            "[data-edit]"
+                        );
+
+
+                    if (!button) {
+                        return;
+                    }
+
+
+                    idInput.value =
+                        button.dataset.id;
+
+
+                    levelNameDisplay
+                        .textContent =
+                        button.dataset.name;
+
+
+                    rangeDisplay
+                        .textContent =
+                        button.dataset.range;
+
+
+                    baseInput.value =
+                        button.dataset.base;
+
+
+                    rateInput.value =
+                        button.dataset.rate;
+
+
+                    modal.classList.add(
+                        "open"
+                    );
+
+
+                    setTimeout(
+                        function () {
+
+                            baseInput.focus();
+
+                            baseInput.select();
+
+                        },
+                        100
+                    );
+
+                }
+            );
+
+        }
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Close Modal
+        |--------------------------------------------------------------------------
+        */
+
+        if (cancelButton) {
+
+            cancelButton.addEventListener(
+                "click",
+                function () {
+
+                    modal.classList.remove(
+                        "open"
+                    );
+
+                }
+            );
+
+        }
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Close Outside
+        |--------------------------------------------------------------------------
+        */
+
+        if (modal) {
+
+            modal.addEventListener(
+                "click",
+                function (event) {
+
+                    if (
+                        event.target ===
+                        modal
+                    ) {
+
+                        modal.classList.remove(
+                            "open"
+                        );
+
+                    }
+
+                }
+            );
+
+        }
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Save
+        |--------------------------------------------------------------------------
+        */
+
+        if (saveButton) {
+
+            saveButton.addEventListener(
+                "click",
+                function () {
+
+                    var id =
+                        idInput.value;
+
+
+                    var base =
+                        Number(
+                            baseInput.value
+                        );
+
+
+                    var rate =
+                        Number(
+                            rateInput.value
+                        );
+
+
+                    if (!id) {
+
+                        toast(
+                            "Fare level not found."
+                        );
+
+                        return;
+                    }
+
+
+                    if (
+                        baseInput.value === "" ||
+                        !Number.isFinite(
+                            base
+                        ) ||
+                        base < 0
+                    ) {
+
+                        toast(
+                            "Please enter a valid fixed pickup amount."
+                        );
+
+                        baseInput.focus();
+
+                        return;
+                    }
+
+
+                    if (
+                        rateInput.value === "" ||
+                        !Number.isFinite(
+                            rate
+                        ) ||
+                        rate < 0
+                    ) {
+
+                        toast(
+                            "Please enter a valid price per mile."
+                        );
+
+                        rateInput.focus();
+
+                        return;
+                    }
+
+
+                    saveButton.disabled =
+                        true;
+
+
+                    fetch(
+                        "/admin/fare-calculations/" +
+                        id +
+                        "/update",
+                        {
+
+                            method:
+                                "POST",
+
+                            headers: {
+
+                                "Accept":
+                                    "application/json",
+
+                                "Content-Type":
+                                    "application/json",
+
+                                "X-CSRF-TOKEN":
+                                    csrfToken(),
+
+                                "X-Requested-With":
+                                    "XMLHttpRequest"
+
+                            },
+
+
+                            body:
+                                JSON.stringify({
+
+                                    base_price:
+                                        base,
+
+                                    price_per_mile:
+                                        rate
+
+                                })
+
+                        }
+                    )
+
+                    .then(
+                        function (response) {
+
+                            return response
+                                .json()
+                                .then(
+                                    function (
+                                        data
+                                    ) {
+
+                                        if (
+                                            !response.ok
+                                        ) {
+
+                                            throw new Error(
+                                                data.message ||
+                                                "Unable to update fare level."
+                                            );
+
+                                        }
+
+
+                                        return data;
+
+                                    }
+                                );
+
+                        }
+                    )
+
+                    .then(
+                        function (data) {
+
+                            toast(
+                                data.message
+                            );
+
+
+                            modal.classList.remove(
+                                "open"
+                            );
+
+
+                            window.location.reload();
+
+                        }
+                    )
+
+                    .catch(
+                        function (error) {
+
+                            console.error(
+                                error
+                            );
+
+
+                            toast(
+                                error.message
+                            );
+
+                        }
+                    )
+
+                    .finally(
+                        function () {
+
+                            saveButton.disabled =
+                                false;
+
+                        }
+                    );
+
+                }
+            );
+
+        }
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Preview Event
+        |--------------------------------------------------------------------------
+        */
+
+        if (distanceInput) {
+
+            distanceInput.addEventListener(
+                "input",
+                preview
+            );
+
+
+            preview();
+
+        }
+
     }
 
     function initSubscriptions() {
@@ -1889,6 +3542,7 @@
             riders: initRiders,
             drivers: initDrivers,
             workplaces: initWorkplaces,
+            "fare-calculations": initFareCalculations,
             payments: initPayments,
             subscriptions: initSubscriptions,
             trips: initTrips,

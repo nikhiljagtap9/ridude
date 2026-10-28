@@ -235,6 +235,36 @@
                 <span>Payment Methods</span>
             </a>
 
+            <a
+                class="nav-link
+                {{ request()->routeIs('admin.fare-calculations.*') ? 'active' : '' }}"
+                href="{{ route('admin.fare-calculations.index') }}"
+            >
+
+                <svg
+                    aria-hidden="true"
+                    class="icon"
+                    viewBox="0 0 24 24"
+                >
+                    <rect
+                        x="4"
+                        y="2"
+                        width="16"
+                        height="20"
+                        rx="2"
+                    ></rect>
+
+                    <path d="M8 6h8"></path>
+
+                    <path d="M8 10h2M14 10h2M8 14h2M14 14h2M8 18h2M14 18h2"></path>
+                </svg>
+
+                <span>
+                    Fare Calculations
+                </span>
+
+            </a>
+
 
             <p class="nav-label">
                 Reports

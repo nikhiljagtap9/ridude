@@ -141,4 +141,72 @@ class RiderController extends Controller
             )
         );
     }
+
+    public function details(int $id)
+    {
+        $rider = DB::table('users')
+            ->leftJoin(
+                'rider_profiles',
+                'rider_profiles.user_id',
+                '=',
+                'users.id'
+            )
+            ->where('users.id', $id)
+            ->where('users.role', 'rider')
+            ->select([
+                'users.id',
+                'users.full_name',
+                'users.email',
+                'users.country_code',
+                'users.phone_number',
+                'users.status',
+                'users.created_at',
+
+                'rider_profiles.address',
+                'rider_profiles.profile_photo',
+            ])
+            ->first();
+
+
+        if (!$rider) {
+
+            return response()->json([
+                'status' => false,
+                'message' => 'Rider not found.',
+            ], 404);
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Ride Activity
+        |--------------------------------------------------------------------------
+        */
+
+        $totalTrips = DB::table('trip_riders')
+            ->where('rider_id', $id)
+            ->where('booking_status', 'completed')
+            ->count();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Rider Details
+        |--------------------------------------------------------------------------
+        */
+
+        $rider->total_trips = $totalTrips;
+
+        /*
+        * Workplace is currently not confirmed
+        * in your rider schema.
+        */
+        $rider->workplace_name = null;
+
+
+        return view(
+            'admin.riders.partials.details',
+            compact('rider')
+        );
+    }
 }

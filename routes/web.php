@@ -10,6 +10,8 @@ use App\Http\Controllers\Admin\PaymentMethodController;
 use App\Http\Controllers\Admin\TripController;
 use App\Http\Controllers\Admin\WorkplaceController;
 use App\Http\Controllers\Admin\TripTransactionController;
+use App\Http\Controllers\Admin\FareCalculationController;
+
 
 
 /*
@@ -58,9 +60,19 @@ Route::prefix('admin')
         )->name('riders.index');
 
         Route::get(
+            '/riders/{id}/details',
+            [RiderController::class, 'details']
+        )->name('riders.details');
+
+        Route::get(
             '/drivers',
             [DriverController::class, 'index']
         )->name('drivers.index');
+
+        Route::get(
+            '/drivers/{id}/details',
+            [DriverController::class, 'details']
+        )->name('drivers.details');
 
         Route::post(
             '/drivers/{id}/status',
@@ -101,6 +113,31 @@ Route::prefix('admin')
             '/payment-methods/{id}/toggle',
             [PaymentMethodController::class, 'toggle']
         )->name('payment-methods.toggle');
+
+        Route::post(
+            '/payment-methods/{id}/update',
+            [PaymentMethodController::class, 'update']
+        )->name('payment-methods.update');
+
+        Route::delete(
+            '/payment-methods/{id}',
+            [PaymentMethodController::class, 'destroy']
+        )->name('payment-methods.destroy');
+
+        Route::get(
+            '/fare-calculations',
+            [FareCalculationController::class, 'index']
+        )->name('fare-calculations.index');
+
+        // Route::post(
+        //     '/fare-calculations',
+        //     [FareCalculationController::class, 'store']
+        // )->name('fare-calculations.store');
+
+        Route::post(
+            '/fare-calculations/{id}/update',
+            [FareCalculationController::class, 'update']
+        )->name('fare-calculations.update');
 
         Route::get(
             '/trips',

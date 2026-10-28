@@ -23,8 +23,9 @@ class DatabaseSeeder extends Seeder
         // ]);
 
         $this->call([
-            PaymentMethodSeeder::class,
+          //  PaymentMethodSeeder::class,
             AdminUserSeeder::class,
+            FareLevelSeeder:: class
         ]);
     }
 }

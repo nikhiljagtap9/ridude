@@ -10,8 +10,6 @@ return [
 
     'default_available_seats' => 3,
 
-    'default_fare_per_rider' => 12.40,
-
     /*
      * Home -> Work
      * Default departure before shift starts
