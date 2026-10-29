@@ -88,6 +88,21 @@ Route::middleware('auth:sanctum')
             '/trips/{tripId}/complete',
             [DriverTripController::class, 'completeTrip']
         );
+
+        Route::get(
+            '/earnings',
+            [DriverTripController::class, 'earnings']
+        );
+
+        Route::get(
+            '/profile',
+            [DriverTripController::class, 'showProfile']
+        );
+
+        Route::post(
+            '/profile',
+            [DriverTripController::class, 'updateProfile']
+        );
 });
 
 
