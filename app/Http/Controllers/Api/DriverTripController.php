@@ -13,11 +13,31 @@ use Throwable;
 
 class DriverTripController extends Controller
 {
+    /*
+     * 
+     * direction = home_to_work
+        → shift_start_time required
+        → shift_end_time NOT required
+        → only home_to_work route calculate
+        → only home_to_work trip create
+
+        direction = work_to_home
+        → shift_end_time required
+        → shift_start_time NOT required
+        → only work_to_home route calculate
+        → only work_to_home trip create
+
+        direction = both
+        → shift_start_time required
+        → shift_end_time required
+        → both routes calculate
+        → both trips create
+    */
+
     public function saveCommutePlan(
-        Request $request,
-        DriverRouteService $routeService
-    )
-    {
+    Request $request,
+    DriverRouteService $routeService
+    ) {
         try {
 
             $user = $request->user();
@@ -29,11 +49,14 @@ class DriverTripController extends Controller
             |--------------------------------------------------------------------------
             */
 
-            if ($user->role !== 'driver') {
+            if (
+                !$user ||
+                $user->role !== 'driver'
+            ) {
 
                 return response()->json([
                     'status' => false,
-                    'message' => 'Driver access only.'
+                    'message' => 'Driver access only.',
                 ], 403);
             }
 
@@ -46,131 +69,645 @@ class DriverTripController extends Controller
 
             $request->validate([
 
+                /*
+                * Direction
+                */
+                'direction' => [
+                    'required',
+                    'in:home_to_work,work_to_home,both',
+                ],
+
+
+                /*
+                * Home
+                */
                 'home_address' => [
                     'required',
                     'string',
-                    'max:255'
+                    'max:255',
                 ],
 
                 'home_latitude' => [
                     'required',
                     'numeric',
-                    'between:-90,90'
+                    'between:-90,90',
                 ],
 
                 'home_longitude' => [
                     'required',
                     'numeric',
-                    'between:-180,180'
+                    'between:-180,180',
                 ],
 
 
+                /*
+                * Workplace
+                */
                 'workplace_name' => [
                     'nullable',
                     'string',
-                    'max:150'
+                    'max:150',
                 ],
 
                 'workplace_address' => [
                     'required',
                     'string',
-                    'max:255'
+                    'max:255',
                 ],
 
                 'workplace_latitude' => [
                     'required',
                     'numeric',
-                    'between:-90,90'
+                    'between:-90,90',
                 ],
 
                 'workplace_longitude' => [
                     'required',
                     'numeric',
-                    'between:-180,180'
+                    'between:-180,180',
                 ],
 
 
+                /*
+                * Date
+                */
                 'commute_date' => [
                     'required',
                     'date',
-                    'after_or_equal:today'
+                    'after_or_equal:today',
                 ],
 
+
+                /*
+                * HOME -> WORK
+                *
+                * Required only when:
+                * home_to_work
+                * both
+                */
                 'shift_start_time' => [
-                    'required',
-                    'date_format:H:i'
-                ],
-
-                'shift_end_time' => [
-                    'required',
+                    'nullable',
+                    'required_if:direction,home_to_work,both',
                     'date_format:H:i',
-                    'after:shift_start_time'
                 ],
 
+
+                /*
+                * WORK -> HOME
+                *
+                * Required only when:
+                * work_to_home
+                * both
+                */
+                'shift_end_time' => [
+                    'nullable',
+                    'required_if:direction,work_to_home,both',
+                    'date_format:H:i',
+                ],
+
+
+                /*
+                * Seats
+                */
                 'available_seats' => [
                     'nullable',
                     'integer',
                     'min:1',
-                    'max:8'
-                ]
+                    'max:8',
+                ],
             ]);
 
 
             /*
             |--------------------------------------------------------------------------
-            | Calculate HOME -> WORK Route
+            | Additional Both Direction Time Validation
             |--------------------------------------------------------------------------
             */
 
-            $homeToWorkRoute = $routeService->calculate(
+            if (
+                $request->direction === 'both'
+                &&
+                $request->shift_start_time
+                &&
+                $request->shift_end_time
+            ) {
 
-                (float) $request->home_latitude,
+                $shiftStart =
+                    Carbon::createFromFormat(
+                        'H:i',
+                        $request->shift_start_time
+                    );
 
-                (float) $request->home_longitude,
+                $shiftEnd =
+                    Carbon::createFromFormat(
+                        'H:i',
+                        $request->shift_end_time
+                    );
 
-                (float) $request->workplace_latitude,
 
-                (float) $request->workplace_longitude
-            );
+                if (
+                    $shiftEnd->lessThanOrEqualTo(
+                        $shiftStart
+                    )
+                ) {
 
-
-            if (!$homeToWorkRoute['status']) {
-
-                return response()->json([
-                    'status' => false,
-                    'message' =>
-                        $homeToWorkRoute['message']
-                        ?? 'Unable to calculate Home to Work route.'
-                ], 422);
+                    return response()->json([
+                        'status' => false,
+                        'message' =>
+                            'Shift end time must be after shift start time.',
+                    ], 422);
+                }
             }
 
 
             /*
             |--------------------------------------------------------------------------
-            | Calculate WORK -> HOME Route
+            | Minimum 4 Hours Required Before Trip
+            |--------------------------------------------------------------------------
+            |
+            | HOME -> WORK
+            | shift_start_time must be at least 4 hours from current time
+            |
+            | WORK -> HOME
+            | shift_end_time must be at least 4 hours from current time
+            |
+            */
+
+            // $now = Carbon::now(
+            //     config('app.timezone')
+            // );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | HOME -> WORK Minimum 4 Hours Required Before Trip
             |--------------------------------------------------------------------------
             */
 
-            $workToHomeRoute = $routeService->calculate(
+            // if (
+            //     in_array(
+            //         $request->direction,
+            //         [
+            //             'home_to_work',
+            //             'both',
+            //         ],
+            //         true
+            //     )
+            // ) {
 
-                (float) $request->workplace_latitude,
+            //     $shiftStartDateTime =
+            //         Carbon::createFromFormat(
+            //             'Y-m-d H:i',
+            //             $request->commute_date
+            //             . ' '
+            //             . $request->shift_start_time,
+            //             config('app.timezone')
+            //         );
 
-                (float) $request->workplace_longitude,
 
-                (float) $request->home_latitude,
+            //     $minimumAllowedTime =
+            //         $now
+            //             ->copy()
+            //             ->addHours(4);
 
-                (float) $request->home_longitude
-            );
+
+            //     if (
+            //         $shiftStartDateTime
+            //             ->lt(
+            //                 $minimumAllowedTime
+            //             )
+            //     ) {
+
+            //         return response()->json([
+
+            //             'status' => false,
+
+            //             'message' =>
+            //                 'Home to Work trip must be scheduled at least 4 hours before shift start time.',
+
+            //             'data' => [
+
+            //                 'direction' =>
+            //                     'home_to_work',
+
+            //                 'current_time' =>
+            //                     $now->format(
+            //                         'Y-m-d H:i:s'
+            //                     ),
+
+            //                 'shift_start_time' =>
+            //                     $shiftStartDateTime
+            //                         ->format(
+            //                             'Y-m-d H:i:s'
+            //                         ),
+
+            //                 'minimum_allowed_time' =>
+            //                     $minimumAllowedTime
+            //                         ->format(
+            //                             'Y-m-d H:i:s'
+            //                         ),
+            //             ]
+
+            //         ], 422);
+            //     }
+            // }
 
 
-            if (!$workToHomeRoute['status']) {
+            /*
+            |--------------------------------------------------------------------------
+            | WORK -> HOME Minimum 4 Hours Required Before Trip
+            |--------------------------------------------------------------------------
+            */
 
-                return response()->json([
-                    'status' => false,
-                    'message' =>
-                        $workToHomeRoute['message']
-                        ?? 'Unable to calculate Work to Home route.'
-                ], 422);
+            // if (
+            //     in_array(
+            //         $request->direction,
+            //         [
+            //             'work_to_home',
+            //             'both',
+            //         ],
+            //         true
+            //     )
+            // ) {
+
+            //     $shiftEndDateTime =
+            //         Carbon::createFromFormat(
+            //             'Y-m-d H:i',
+            //             $request->commute_date
+            //             . ' '
+            //             . $request->shift_end_time,
+            //             config('app.timezone')
+            //         );
+
+
+            //     $minimumAllowedTime =
+            //         $now
+            //             ->copy()
+            //             ->addHours(4);
+
+
+            //     if (
+            //         $shiftEndDateTime
+            //             ->lt(
+            //                 $minimumAllowedTime
+            //             )
+            //     ) {
+
+            //         return response()->json([
+
+            //             'status' => false,
+
+            //             'message' =>
+            //                 'Work to Home trip must be scheduled at least 4 hours before shift end time.',
+
+            //             'data' => [
+
+            //                 'direction' =>
+            //                     'work_to_home',
+
+            //                 'current_time' =>
+            //                     $now->format(
+            //                         'Y-m-d H:i:s'
+            //                     ),
+
+            //                 'shift_end_time' =>
+            //                     $shiftEndDateTime
+            //                         ->format(
+            //                             'Y-m-d H:i:s'
+            //                         ),
+
+            //                 'minimum_allowed_time' =>
+            //                     $minimumAllowedTime
+            //                         ->format(
+            //                             'Y-m-d H:i:s'
+            //                         ),
+            //             ]
+
+            //         ], 422);
+            //     }
+            // }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Seats
+            |--------------------------------------------------------------------------
+            */
+
+            $seats =
+                $request->available_seats
+                ?? config(
+                    'ridude.default_available_seats',
+                    3
+                );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Edit Restriction - 4 Hours Before Shift
+            |--------------------------------------------------------------------------
+            |
+            | HOME -> WORK
+            | Can edit only until 4 hours before shift_start_time
+            |
+            | WORK -> HOME
+            | Can edit only until 4 hours before shift_end_time
+            |
+            */
+
+            $existingSetting =
+                DB::table('driver_commute_settings')
+
+                    ->where(
+                        'user_id',
+                        $user->id
+                    )
+
+                    ->where(
+                        'commute_date',
+                        $request->commute_date
+                    )
+
+                    ->first();
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Only Apply Restriction While Editing Existing Plan
+            |--------------------------------------------------------------------------
+            */
+
+            if ($existingSetting) {
+
+                $now = Carbon::now();
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | HOME -> WORK Edit Check
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                    in_array(
+                        $request->direction,
+                        [
+                            'home_to_work',
+                            'both',
+                        ],
+                        true
+                    )
+                    &&
+                    !empty(
+                        $existingSetting
+                            ->shift_start_time
+                    )
+                ) {
+
+                    $shiftStartDateTime =
+                        Carbon::parse(
+                            $request->commute_date
+                            . ' '
+                            . $existingSetting
+                                ->shift_start_time
+                        );
+
+
+                    $homeToWorkEditDeadline =
+                        $shiftStartDateTime
+                            ->copy()
+                            ->subHours(4);
+
+
+                    if (
+                        $now->greaterThanOrEqualTo(
+                            $homeToWorkEditDeadline
+                        )
+                    ) {
+
+                        return response()->json([
+
+                            'status' =>
+                                false,
+
+                            'message' =>
+                                'Home to Work schedule cannot be edited within 4 hours of shift start time.',
+
+                            'data' => [
+
+                                'direction' =>
+                                    'home_to_work',
+
+                                'shift_time' =>
+                                    $shiftStartDateTime
+                                        ->format(
+                                            'Y-m-d H:i:s'
+                                        ),
+
+                                'edit_deadline' =>
+                                    $homeToWorkEditDeadline
+                                        ->format(
+                                            'Y-m-d H:i:s'
+                                        ),
+                            ],
+
+                        ], 422);
+                    }
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | WORK -> HOME Edit Check
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                    in_array(
+                        $request->direction,
+                        [
+                            'work_to_home',
+                            'both',
+                        ],
+                        true
+                    )
+                    &&
+                    !empty(
+                        $existingSetting
+                            ->shift_end_time
+                    )
+                ) {
+
+                    $shiftEndDateTime =
+                        Carbon::parse(
+                            $request->commute_date
+                            . ' '
+                            . $existingSetting
+                                ->shift_end_time
+                        );
+
+
+                    $workToHomeEditDeadline =
+                        $shiftEndDateTime
+                            ->copy()
+                            ->subHours(4);
+
+
+                    if (
+                        $now->greaterThanOrEqualTo(
+                            $workToHomeEditDeadline
+                        )
+                    ) {
+
+                        return response()->json([
+
+                            'status' =>
+                                false,
+
+                            'message' =>
+                                'Work to Home schedule cannot be edited within 4 hours of shift end time.',
+
+                            'data' => [
+
+                                'direction' =>
+                                    'work_to_home',
+
+                                'shift_time' =>
+                                    $shiftEndDateTime
+                                        ->format(
+                                            'Y-m-d H:i:s'
+                                        ),
+
+                                'edit_deadline' =>
+                                    $workToHomeEditDeadline
+                                        ->format(
+                                            'Y-m-d H:i:s'
+                                        ),
+                            ],
+
+                        ], 422);
+                    }
+                }
+            }    
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Route Variables
+            |--------------------------------------------------------------------------
+            */
+
+            $homeToWorkRoute = null;
+
+            $workToHomeRoute = null;
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Calculate HOME -> WORK
+            |--------------------------------------------------------------------------
+            |
+            | Only when direction:
+            | home_to_work
+            | both
+            |
+            */
+
+            if (
+                in_array(
+                    $request->direction,
+                    [
+                        'home_to_work',
+                        'both',
+                    ],
+                    true
+                )
+            ) {
+
+                $homeToWorkRoute =
+                    $routeService->calculate(
+
+                        (float)
+                        $request->home_latitude,
+
+                        (float)
+                        $request->home_longitude,
+
+                        (float)
+                        $request->workplace_latitude,
+
+                        (float)
+                        $request->workplace_longitude
+                    );
+
+
+                if (
+                    !$homeToWorkRoute['status']
+                ) {
+
+                    return response()->json([
+                        'status' => false,
+
+                        'message' =>
+                            $homeToWorkRoute['message']
+                            ?? 'Unable to calculate Home to Work route.',
+
+                    ], 422);
+                }
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Calculate WORK -> HOME
+            |--------------------------------------------------------------------------
+            |
+            | Only when direction:
+            | work_to_home
+            | both
+            |
+            */
+
+            if (
+                in_array(
+                    $request->direction,
+                    [
+                        'work_to_home',
+                        'both',
+                    ],
+                    true
+                )
+            ) {
+
+                $workToHomeRoute =
+                    $routeService->calculate(
+
+                        (float)
+                        $request->workplace_latitude,
+
+                        (float)
+                        $request->workplace_longitude,
+
+                        (float)
+                        $request->home_latitude,
+
+                        (float)
+                        $request->home_longitude
+                    );
+
+
+                if (
+                    !$workToHomeRoute['status']
+                ) {
+
+                    return response()->json([
+                        'status' => false,
+
+                        'message' =>
+                            $workToHomeRoute['message']
+                            ?? 'Unable to calculate Work to Home route.',
+
+                    ], 422);
+                }
             }
 
 
@@ -185,26 +722,106 @@ class DriverTripController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | Seats
+            | Driver Commute Settings
             |--------------------------------------------------------------------------
             */
 
-            $seats = $request->available_seats
-                ?? config(
-                    'ridude.default_available_seats',
-                    3
-                );
+            $settingsData = [
+
+                'home_address' =>
+                    $request->home_address,
+
+                'home_latitude' =>
+                    $request->home_latitude,
+
+                'home_longitude' =>
+                    $request->home_longitude,
+
+                'workplace_name' =>
+                    $request->workplace_name,
+
+                'workplace_address' =>
+                    $request->workplace_address,
+
+                'workplace_latitude' =>
+                    $request->workplace_latitude,
+
+                'workplace_longitude' =>
+                    $request->workplace_longitude,
+
+                'shift_start_time' =>
+                    in_array(
+                        $request->direction,
+                        ['home_to_work', 'both'],
+                        true
+                    )
+                        ? $request->shift_start_time
+                        : null,
+
+                'shift_end_time' =>
+                    in_array(
+                        $request->direction,
+                        ['work_to_home', 'both'],
+                        true
+                    )
+                        ? $request->shift_end_time
+                        : null,    
+
+                'available_seats' =>
+                    $seats,
+
+                'is_active' =>
+                    true,
+
+                'updated_at' =>
+                    now(),
+            ];
 
 
             /*
-            |--------------------------------------------------------------------------
-            | Save Driver Commute Settings
-            |--------------------------------------------------------------------------
+            * Save only relevant shift times.
             */
+
+            if (
+                in_array(
+                    $request->direction,
+                    [
+                        'home_to_work',
+                        'both',
+                    ],
+                    true
+                )
+            ) {
+
+                $settingsData[
+                    'shift_start_time'
+                ] =
+                    $request->shift_start_time;
+            }
+
+
+            if (
+                in_array(
+                    $request->direction,
+                    [
+                        'work_to_home',
+                        'both',
+                    ],
+                    true
+                )
+            ) {
+
+                $settingsData[
+                    'shift_end_time'
+                ] =
+                    $request->shift_end_time;
+            }
+
 
             DB::table(
                 'driver_commute_settings'
-            )->updateOrInsert(
+            )
+            ->updateOrInsert(
 
                 [
                     'user_id' =>
@@ -214,320 +831,350 @@ class DriverTripController extends Controller
                         $request->commute_date,
                 ],
 
-                [
-                    'home_address' =>
-                        $request->home_address,
-
-                    'home_latitude' =>
-                        $request->home_latitude,
-
-                    'home_longitude' =>
-                        $request->home_longitude,
-
-                    'workplace_name' =>
-                        $request->workplace_name,
-
-                    'workplace_address' =>
-                        $request->workplace_address,
-
-                    'workplace_latitude' =>
-                        $request->workplace_latitude,
-
-                    'workplace_longitude' =>
-                        $request->workplace_longitude,
-
-                    'shift_start_time' =>
-                        $request->shift_start_time,
-
-                    'shift_end_time' =>
-                        $request->shift_end_time,
-
-                    'available_seats' =>
-                        $seats,
-
-                    'is_active' =>
-                        true,
-
-                    'updated_at' =>
-                        now(),
-
-                ]
+                $settingsData
             );
 
 
             /*
             |--------------------------------------------------------------------------
-            | HOME -> WORK Departure Time
-            |--------------------------------------------------------------------------
-            |
-            | Example:
-            | Shift Start = 08:00
-            | Lead = 45 Minutes
-            | Trip Start = 07:15
-            |
-            */
-
-            $homeToWorkTime =
-                Carbon::createFromFormat(
-                    'H:i',
-                    $request->shift_start_time
-                )
-                ->subMinutes(
-                    config(
-                        'ridude.home_to_work_lead_minutes',
-                        45
-                    )
-                )
-                ->format('H:i:s');
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | WORK -> HOME Departure Time
-            |--------------------------------------------------------------------------
-            |
-            | Example:
-            | Shift End = 17:00
-            | Delay = 10 Minutes
-            | Trip Start = 17:10
-            |
-            */
-
-            $workToHomeTime =
-                Carbon::createFromFormat(
-                    'H:i',
-                    $request->shift_end_time
-                )
-                ->addMinutes(
-                    config(
-                        'ridude.work_to_home_delay_minutes',
-                        10
-                    )
-                )
-                ->format('H:i:s');
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Create / Update HOME -> WORK Trip
+            | HOME -> WORK Trip
             |--------------------------------------------------------------------------
             */
 
-            DB::table('trips')->updateOrInsert(
-
-                [
-                    'driver_id' =>
-                        $user->id,
-
-                    'trip_date' =>
-                        $request->commute_date,
-
-                    'direction' =>
+            if (
+                in_array(
+                    $request->direction,
+                    [
                         'home_to_work',
-                ],
+                        'both',
+                    ],
+                    true
+                )
+            ) {
 
-                [
-                    'departure_time' =>
-                        $homeToWorkTime,
-
-
-                    /*
-                    * Start
-                    */
-
-                    'start_name' =>
-                        'Home',
-
-                    'start_address' =>
-                        $request->home_address,
-
-                    'start_latitude' =>
-                        $request->home_latitude,
-
-                    'start_longitude' =>
-                        $request->home_longitude,
+                $homeToWorkTime =
+                    Carbon::createFromFormat(
+                        'H:i',
+                        $request->shift_start_time
+                    )
+                    ->format('H:i:s');
 
 
-                    /*
-                    * Destination
-                    */
+                DB::table('trips')
+                    ->updateOrInsert(
 
-                    'destination_name' =>
-                        $request->workplace_name
-                        ?? 'Work',
+                        [
+                            'driver_id' =>
+                                $user->id,
 
-                    'destination_address' =>
-                        $request->workplace_address,
+                            'trip_date' =>
+                                $request->commute_date,
 
-                    'destination_latitude' =>
-                        $request->workplace_latitude,
-
-                    'destination_longitude' =>
-                        $request->workplace_longitude,
-
-
-                    /*
-                    * Seats
-                    */
-
-                    'available_seats' =>
-                        $seats,
-
-
-                    /*
-                    * Existing Fare Field
-                    *
-                    * We will eventually use rider-wise
-                    * fare from trip_riders.
-                    */
-
-                    'fare_per_rider' => 0,
-
-
-                    /*
-                    * Driver Route Information
-                    */
-
-                    'estimated_distance' =>
-                        $homeToWorkRoute[
-                            'distance_miles'
+                            'direction' =>
+                                'home_to_work',
                         ],
 
-                    'estimated_duration_minutes' =>
-                        $homeToWorkRoute[
-                            'duration_minutes'
-                        ],
-
-                    'route_polyline' =>
-                        $homeToWorkRoute[
-                            'polyline'
-                        ] ?? null,
+                        [
+                            'departure_time' =>
+                                $homeToWorkTime,
 
 
-                    /*
-                    * Status
-                    */
+                            /*
+                            * Start
+                            */
+                            'start_name' =>
+                                'Home',
 
-                    'status' =>
-                        'scheduled',
+                            'start_address' =>
+                                $request->home_address,
 
-                    'created_at' =>
-                        now(),
+                            'start_latitude' =>
+                                $request->home_latitude,
 
-                    'updated_at' =>
-                        now(),
-                ]
-            );
+                            'start_longitude' =>
+                                $request->home_longitude,
+
+
+                            /*
+                            * Destination
+                            */
+                            'destination_name' =>
+                                $request->workplace_name
+                                ?? 'Work',
+
+                            'destination_address' =>
+                                $request->workplace_address,
+
+                            'destination_latitude' =>
+                                $request->workplace_latitude,
+
+                            'destination_longitude' =>
+                                $request->workplace_longitude,
+
+
+                            /*
+                            * Seats
+                            */
+                            'available_seats' =>
+                                $seats,
+
+
+                            /*
+                            * Fare calculated rider-wise
+                            */
+                            'fare_per_rider' =>
+                                0,
+
+
+                            /*
+                            * Google Route
+                            */
+                            'estimated_distance' =>
+                                $homeToWorkRoute[
+                                    'distance_miles'
+                                ],
+
+                            'estimated_duration_minutes' =>
+                                $homeToWorkRoute[
+                                    'duration_minutes'
+                                ],
+
+                            'route_polyline' =>
+                                $homeToWorkRoute[
+                                    'polyline'
+                                ]
+                                ?? null,
+
+
+                            /*
+                            * Status
+                            */
+                            'status' =>
+                                'scheduled',
+
+                            'updated_at' =>
+                                now(),
+                        ]
+                    );
+            }
 
 
             /*
             |--------------------------------------------------------------------------
-            | Create / Update WORK -> HOME Trip
+            | WORK -> HOME Trip
             |--------------------------------------------------------------------------
             */
 
-            DB::table('trips')->updateOrInsert(
-
-                [
-                    'driver_id' =>
-                        $user->id,
-
-                    'trip_date' =>
-                        $request->commute_date,
-
-                    'direction' =>
+            if (
+                in_array(
+                    $request->direction,
+                    [
                         'work_to_home',
-                ],
+                        'both',
+                    ],
+                    true
+                )
+            ) {
 
-                [
-                    'departure_time' =>
-                        $workToHomeTime,
-
-
-                    /*
-                    * Start
-                    */
-
-                    'start_name' =>
-                        $request->workplace_name
-                        ?? 'Work',
-
-                    'start_address' =>
-                        $request->workplace_address,
-
-                    'start_latitude' =>
-                        $request->workplace_latitude,
-
-                    'start_longitude' =>
-                        $request->workplace_longitude,
+                $workToHomeTime =
+                    Carbon::createFromFormat(
+                        'H:i',
+                        $request->shift_end_time
+                    )
+                    ->format('H:i:s');
 
 
-                    /*
-                    * Destination
-                    */
+                DB::table('trips')
+                    ->updateOrInsert(
 
-                    'destination_name' =>
-                        'Home',
+                        [
+                            'driver_id' =>
+                                $user->id,
 
-                    'destination_address' =>
-                        $request->home_address,
+                            'trip_date' =>
+                                $request->commute_date,
 
-                    'destination_latitude' =>
-                        $request->home_latitude,
-
-                    'destination_longitude' =>
-                        $request->home_longitude,
-
-
-                    /*
-                    * Seats
-                    */
-
-                    'available_seats' =>
-                        $seats,
-
-
-                    /*
-                    * Existing Fare Field
-                    */
-
-                    'fare_per_rider' => 0,
-
-
-                    /*
-                    * Driver Route Information
-                    */
-
-                    'estimated_distance' =>
-                        $workToHomeRoute[
-                            'distance_miles'
+                            'direction' =>
+                                'work_to_home',
                         ],
 
-                    'estimated_duration_minutes' =>
-                        $workToHomeRoute[
-                            'duration_minutes'
-                        ],
+                        [
+                            'departure_time' =>
+                                $workToHomeTime,
 
-                    'route_polyline' =>
-                        $workToHomeRoute[
-                            'polyline'
-                        ] ?? null,
+
+                            /*
+                            * Start
+                            */
+                            'start_name' =>
+                                $request->workplace_name
+                                ?? 'Work',
+
+                            'start_address' =>
+                                $request->workplace_address,
+
+                            'start_latitude' =>
+                                $request->workplace_latitude,
+
+                            'start_longitude' =>
+                                $request->workplace_longitude,
+
+
+                            /*
+                            * Destination
+                            */
+                            'destination_name' =>
+                                'Home',
+
+                            'destination_address' =>
+                                $request->home_address,
+
+                            'destination_latitude' =>
+                                $request->home_latitude,
+
+                            'destination_longitude' =>
+                                $request->home_longitude,
+
+
+                            /*
+                            * Seats
+                            */
+                            'available_seats' =>
+                                $seats,
+
+
+                            /*
+                            * Rider-wise fare
+                            */
+                            'fare_per_rider' =>
+                                0,
+
+
+                            /*
+                            * Google Route
+                            */
+                            'estimated_distance' =>
+                                $workToHomeRoute[
+                                    'distance_miles'
+                                ],
+
+                            'estimated_duration_minutes' =>
+                                $workToHomeRoute[
+                                    'duration_minutes'
+                                ],
+
+                            'route_polyline' =>
+                                $workToHomeRoute[
+                                    'polyline'
+                                ]
+                                ?? null,
+
+
+                            /*
+                            * Status
+                            */
+                            'status' =>
+                                'scheduled',
+
+                            'updated_at' =>
+                                now(),
+                        ]
+                    );
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Remove Unselected Direction
+            |--------------------------------------------------------------------------
+            |
+            | Example:
+            |
+            | Previously BOTH saved.
+            | User changes selection to HOME -> WORK.
+            |
+            | Remove scheduled WORK -> HOME trip only when
+            | there are no riders allocated to it.
+            |
+            */
+
+            if (
+                $request->direction
+                !== 'both'
+            ) {
+
+                $oppositeDirection =
+                    $request->direction
+                    === 'home_to_work'
+
+                        ? 'work_to_home'
+
+                        : 'home_to_work';
+
+
+                $oppositeTrip =
+                    DB::table('trips')
+
+                        ->where(
+                            'driver_id',
+                            $user->id
+                        )
+
+                        ->where(
+                            'trip_date',
+                            $request->commute_date
+                        )
+
+                        ->where(
+                            'direction',
+                            $oppositeDirection
+                        )
+
+                        ->where(
+                            'status',
+                            'scheduled'
+                        )
+
+                        ->first();
+
+
+                if ($oppositeTrip) {
+
+                    $hasRiders =
+                        DB::table(
+                            'trip_riders'
+                        )
+
+                        ->where(
+                            'trip_id',
+                            $oppositeTrip->id
+                        )
+
+                        ->where(
+                            'booking_status',
+                            '!=',
+                            'cancelled'
+                        )
+
+                        ->exists();
 
 
                     /*
-                    * Status
+                    * Safe delete only if no rider allocated.
                     */
+                    if (!$hasRiders) {
 
-                    'status' =>
-                        'scheduled',
+                        DB::table('trips')
 
-                    'created_at' =>
-                        now(),
+                            ->where(
+                                'id',
+                                $oppositeTrip->id
+                            )
 
-                    'updated_at' =>
-                        now(),
-                ]
-            );
+                            ->delete();
+                    }
+                }
+            }
 
 
             /*
@@ -541,27 +1188,64 @@ class DriverTripController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | Get Created Trips
+            | Get Only Selected Trips
             |--------------------------------------------------------------------------
             */
 
-            $trips = DB::table('trips')
+            $tripQuery =
+                DB::table('trips')
 
-                ->where(
-                    'driver_id',
-                    $user->id
-                )
+                    ->where(
+                        'driver_id',
+                        $user->id
+                    )
 
-                ->where(
-                    'trip_date',
-                    $request->commute_date
-                )
+                    ->where(
+                        'trip_date',
+                        $request->commute_date
+                    );
 
-                ->orderBy(
-                    'departure_time'
-                )
 
-                ->get();
+            if (
+                $request->direction
+                === 'home_to_work'
+            ) {
+
+                $tripQuery->where(
+                    'direction',
+                    'home_to_work'
+                );
+
+            } elseif (
+                $request->direction
+                === 'work_to_home'
+            ) {
+
+                $tripQuery->where(
+                    'direction',
+                    'work_to_home'
+                );
+
+            } else {
+
+                $tripQuery->whereIn(
+                    'direction',
+                    [
+                        'home_to_work',
+                        'work_to_home',
+                    ]
+                );
+            }
+
+
+            $trips =
+                $tripQuery
+
+                    ->orderBy(
+                        'departure_time'
+                    )
+
+                    ->get();
 
 
             /*
@@ -571,66 +1255,79 @@ class DriverTripController extends Controller
             */
 
             return response()->json([
-                'status' => true,
+
+                'status' =>
+                    true,
 
                 'message' =>
                     'Commute plan saved successfully.',
 
                 'data' => [
 
+                    'direction' =>
+                        $request->direction,
+
                     'trips' =>
                         $trips,
 
-                    /*
-                    * Helpful testing information
-                    */
+                    'home_to_work_route' =>
+                        $homeToWorkRoute
+                        ? [
+                            'distance_miles' =>
+                                $homeToWorkRoute[
+                                    'distance_miles'
+                                ],
 
-                    'home_to_work_route' => [
+                            'duration_minutes' =>
+                                $homeToWorkRoute[
+                                    'duration_minutes'
+                                ],
+                        ]
+                        : null,
 
-                        'distance_miles' =>
-                            $homeToWorkRoute[
-                                'distance_miles'
-                            ],
+                    'work_to_home_route' =>
+                        $workToHomeRoute
+                        ? [
+                            'distance_miles' =>
+                                $workToHomeRoute[
+                                    'distance_miles'
+                                ],
 
-                        'duration_minutes' =>
-                            $homeToWorkRoute[
-                                'duration_minutes'
-                            ],
-                    ],
-
-                    'work_to_home_route' => [
-
-                        'distance_miles' =>
-                            $workToHomeRoute[
-                                'distance_miles'
-                            ],
-
-                        'duration_minutes' =>
-                            $workToHomeRoute[
-                                'duration_minutes'
-                            ],
-                    ],
+                            'duration_minutes' =>
+                                $workToHomeRoute[
+                                    'duration_minutes'
+                                ],
+                        ]
+                        : null,
                 ]
             ]);
 
 
-        } catch (ValidationException $e) {
+        } catch (
+            ValidationException $e
+        ) {
 
             return response()->json([
-                'status' => false,
+
+                'status' =>
+                    false,
 
                 'message' =>
                     'Validation failed.',
 
                 'errors' =>
-                    $e->errors()
+                    $e->errors(),
+
             ], 422);
 
 
-        } catch (Throwable $e) {
+        } catch (
+            Throwable $e
+        ) {
 
             if (
-                DB::transactionLevel() > 0
+                DB::transactionLevel()
+                > 0
             ) {
 
                 DB::rollBack();
@@ -638,13 +1335,16 @@ class DriverTripController extends Controller
 
 
             return response()->json([
-                'status' => false,
+
+                'status' =>
+                    false,
 
                 'message' =>
                     'Unable to save commute plan.',
 
                 'error' =>
-                    $e->getMessage()
+                    $e->getMessage(),
+
             ], 500);
         }
     }

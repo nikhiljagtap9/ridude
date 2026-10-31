@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 use Throwable;
 
 class RiderAllocationService
@@ -164,6 +165,98 @@ class RiderAllocationService
                     'status' => false,
                     'message' =>
                         'No matching driver trip found.',
+                ];
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Allocation Window - 4 Hours Before Trip
+            |--------------------------------------------------------------------------
+            |
+            | Example:
+            |
+            | Trip Time = 18:00
+            |
+            | 13:50 -> Not Eligible
+            | 14:00 -> Eligible
+            | 15:00 -> Eligible
+            | 17:50 -> Eligible
+            | 18:00 -> Not Eligible
+            |
+            */
+
+            $now =
+                Carbon::now(
+                    config('app.timezone')
+                );
+
+
+            $trips =
+                $trips
+                    ->filter(
+                        function ($trip) use ($now) {
+
+                            /*
+                            * Create complete trip datetime
+                            */
+
+                            $tripDateTime =
+                                Carbon::createFromFormat(
+                                    'Y-m-d H:i:s',
+                                    $trip->trip_date
+                                    . ' '
+                                    . $trip->departure_time,
+                                    config('app.timezone')
+                                );
+
+
+                            /*
+                            * Allocation starts 4 hours
+                            * before trip departure.
+                            */
+
+                            $allocationStartTime =
+                                $tripDateTime
+                                    ->copy()
+                                    ->subHours(4);
+
+
+                            /*
+                            * Eligible when:
+                            *
+                            * now >= trip time - 4 hours
+                            *
+                            * AND
+                            *
+                            * now < trip time
+                            */
+
+                            return
+                                $now->greaterThanOrEqualTo(
+                                    $allocationStartTime
+                                )
+                                &&
+                                $now->lessThan(
+                                    $tripDateTime
+                                );
+                        }
+                    )
+                    ->values();
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | No Trip Inside Allocation Window
+            |--------------------------------------------------------------------------
+            */
+
+            if ($trips->isEmpty()) {
+
+                return [
+                    'status' => false,
+                    'message' =>
+                        'Matching trip found, but allocation will start only within 4 hours of trip time.',
                 ];
             }
 

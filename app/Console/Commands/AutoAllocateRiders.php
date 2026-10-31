@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Services\RiderAllocationService;
+use Carbon\Carbon;
 
 class AutoAllocateRiders extends Command
 {
@@ -14,12 +15,31 @@ class AutoAllocateRiders extends Command
 
 
     protected $description =
-        'Allocate pending rider requests to best matching driver trips.';
+        'Allocate current date pending rider requests to best matching driver trips.';
 
 
     public function handle(
         RiderAllocationService $allocationService
     ): int {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Current Date
+        |--------------------------------------------------------------------------
+        */
+
+        $today =
+            Carbon::now(
+                config('app.timezone')
+            )
+            ->toDateString();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Get Only Today's Pending Rider Requests
+        |--------------------------------------------------------------------------
+        */
 
         $pendingRequests =
             DB::table(
@@ -49,18 +69,28 @@ class AutoAllocateRiders extends Command
                 'requested_direction'
             )
 
+            /*
+             * IMPORTANT:
+             * Only current date requests
+             */
             ->whereDate(
                 'requested_trip_date',
-                '>=',
-                now()->toDateString()
+                $today
             )
 
             ->orderBy(
-                'created_at'
+                'created_at',
+                'asc'
             )
 
             ->get();
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | No Pending Requests
+        |--------------------------------------------------------------------------
+        */
 
         if (
             $pendingRequests
@@ -68,13 +98,20 @@ class AutoAllocateRiders extends Command
         ) {
 
             $this->info(
-                'No pending rider requests found.'
+                'No pending rider requests found for today: '
+                . $today
             );
 
             return
                 self::SUCCESS;
         }
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Process Pending Requests
+        |--------------------------------------------------------------------------
+        */
 
         foreach (
             $pendingRequests
@@ -83,6 +120,17 @@ class AutoAllocateRiders extends Command
 
             try {
 
+                /*
+                 * allocateBestTrip() will check:
+                 *
+                 * 1. Same date
+                 * 2. Same direction
+                 * 3. Workplace match
+                 * 4. Seat availability
+                 * 5. Driver route
+                 * 6. Trip is inside 4-hour allocation window
+                 */
+
                 $result =
                     $allocationService
                         ->allocateBestTrip(
@@ -90,10 +138,16 @@ class AutoAllocateRiders extends Command
                         );
 
 
+                /*
+                |--------------------------------------------------------------------------
+                | Allocated
+                |--------------------------------------------------------------------------
+                */
+
                 if (
-                    $result[
-                        'status'
-                    ]
+                    !empty(
+                        $result['status']
+                    )
                 ) {
 
                     $this->info(
@@ -107,6 +161,14 @@ class AutoAllocateRiders extends Command
                         [
                             'trip_rider_id' =>
                                 $request->id,
+
+                            'requested_trip_date' =>
+                                $request
+                                    ->requested_trip_date,
+
+                            'requested_direction' =>
+                                $request
+                                    ->requested_direction,
 
                             'trip_id' =>
                                 $result[
@@ -125,21 +187,65 @@ class AutoAllocateRiders extends Command
 
                 } else {
 
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Still Pending
+                    |--------------------------------------------------------------------------
+                    |
+                    | Examples:
+                    |
+                    | - No driver available
+                    | - Trip still more than 4 hours away
+                    | - No seats
+                    | - Route mismatch
+                    |
+                    | Cron will retry after 10 minutes.
+                    |
+                    */
+
+                    $message =
+                        $result[
+                            'message'
+                        ]
+                        ?? 'Unable to allocate';
+
+
                     $this->warn(
                         'Pending: '
                         . $request->id
                         . ' - '
-                        . (
-                            $result[
-                                'message'
-                            ]
-                            ?? 'Unable to allocate'
-                        )
+                        . $message
+                    );
+
+
+                    Log::info(
+                        'Rider allocation still pending',
+                        [
+                            'trip_rider_id' =>
+                                $request->id,
+
+                            'requested_trip_date' =>
+                                $request
+                                    ->requested_trip_date,
+
+                            'requested_direction' =>
+                                $request
+                                    ->requested_direction,
+
+                            'message' =>
+                                $message,
+                        ]
                     );
                 }
 
 
             } catch (\Throwable $e) {
+
+                /*
+                |--------------------------------------------------------------------------
+                | Error
+                |--------------------------------------------------------------------------
+                */
 
                 Log::error(
                     'Rider cron allocation error',
@@ -147,8 +253,24 @@ class AutoAllocateRiders extends Command
                         'trip_rider_id' =>
                             $request->id,
 
+                        'requested_trip_date' =>
+                            $request
+                                ->requested_trip_date
+                                ?? null,
+
+                        'requested_direction' =>
+                            $request
+                                ->requested_direction
+                                ?? null,
+
                         'message' =>
                             $e->getMessage(),
+
+                        'file' =>
+                            $e->getFile(),
+
+                        'line' =>
+                            $e->getLine(),
                     ]
                 );
 
@@ -156,6 +278,8 @@ class AutoAllocateRiders extends Command
                 $this->error(
                     'Error: '
                     . $request->id
+                    . ' - '
+                    . $e->getMessage()
                 );
             }
         }

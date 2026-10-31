@@ -14,6 +14,17 @@ use App\Http\Controllers\Admin\FareCalculationController;
 
 
 
+Route::get('/cron/riders-auto-allocate', function () {
+
+    Artisan::call('riders:auto-allocate');
+
+    return response()->json([
+        'status' => true,
+        'message' => 'Rider auto allocation cron executed.',
+        'output' => Artisan::output(),
+    ]);
+});
+
 /*
 |--------------------------------------------------------------------------
 | Admin Guest Routes
