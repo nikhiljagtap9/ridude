@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\SubscriptionPlanController;
 use App\Http\Controllers\Api\DriverTripController;
 use App\Http\Controllers\Api\RiderTripController;
+use App\Http\Controllers\Api\WorkplaceController;
 
 /*
 |--------------------------------------------------------------------------
@@ -46,7 +47,10 @@ Route::middleware('auth:sanctum')->group(function () {
         'logout'
     ]);
 
-   
+     Route::get(
+        '/workplaces',
+        [WorkplaceController::class, 'index']
+    );
 
 });
 
@@ -137,6 +141,16 @@ Route::middleware('auth:sanctum')
                 RiderTripController::class,
                 'requestRide'
             ]
+        );
+
+        Route::get(
+            '/profile',
+            [RiderTripController::class, 'showProfile']
+        );
+
+        Route::post(
+            '/profile',
+            [RiderTripController::class, 'updateProfile']
         );
 });
 

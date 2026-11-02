@@ -656,4 +656,612 @@ class RiderTripController extends Controller
                 'Ride request cancelled successfully.',
         ]);
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Get Rider Profile
+    |--------------------------------------------------------------------------
+    */
+    public function showProfile(Request $request)
+    {
+        try {
+
+            $user = $request->user();
+
+            if (
+                !$user ||
+                $user->role !== 'rider'
+            ) {
+
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Rider access only.',
+                ], 403);
+            }
+
+
+            $profile =
+                DB::table('users as u')
+
+                    ->leftJoin(
+                        'rider_profiles as rp',
+                        'rp.user_id',
+                        '=',
+                        'u.id'
+                    )
+
+                    ->where(
+                        'u.id',
+                        $user->id
+                    )
+
+                    ->select(
+                        'u.id',
+                        'u.full_name',
+                        'u.email',
+                        'u.country_code',
+                        'u.phone_number',
+                        'u.role',
+
+                        'rp.address',
+                        'rp.profile_photo',
+                        'rp.verification_status',
+                        'rp.rejection_reason'
+                    )
+
+                    ->first();
+
+
+            if (!$profile) {
+
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Rider profile not found.',
+                ], 404);
+            }
+
+
+            return response()->json([
+                'status' => true,
+                'data' => $profile,
+            ]);
+
+
+        } catch (\Throwable $e) {
+
+            return response()->json([
+                'status' => false,
+                'message' =>
+                    'Unable to load rider profile.',
+                'error' =>
+                    $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Update Rider Profile
+    |--------------------------------------------------------------------------
+    */
+
+    public function updateProfile(Request $request)
+    {
+        try {
+
+            $user = $request->user();
+
+
+            if (
+                !$user ||
+                $user->role !== 'rider'
+            ) {
+
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Rider access only.',
+                ], 403);
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Validation
+            |--------------------------------------------------------------------------
+            */
+
+            $request->validate([
+
+                'full_name' => [
+                    'nullable',
+                    'string',
+                    'max:255',
+                ],
+
+                'email' => [
+                    'nullable',
+                    'email',
+                    'max:255',
+                ],
+
+                'country_code' => [
+                    'nullable',
+                    'string',
+                    'max:10',
+                ],
+
+                'phone_number' => [
+                    'nullable',
+                    'string',
+                    'max:30',
+                ],
+
+                'address' => [
+                    'nullable',
+                    'string',
+                    'max:500',
+                ],
+
+                'profile_photo' => [
+                    'nullable',
+                    'image',
+                    'mimes:jpg,jpeg,png,webp',
+                    'max:5120',
+                ],
+            ]);
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Duplicate Email Check
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                $request->filled(
+                    'email'
+                )
+            ) {
+
+                $emailExists =
+                    DB::table('users')
+
+                        ->where(
+                            'email',
+                            $request->email
+                        )
+
+                        ->where(
+                            'id',
+                            '!=',
+                            $user->id
+                        )
+
+                        ->exists();
+
+
+                if ($emailExists) {
+
+                    return response()->json([
+                        'status' => false,
+                        'message' =>
+                            'This email address is already registered.',
+                    ], 422);
+                }
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Duplicate Phone Check
+            |--------------------------------------------------------------------------
+            */
+
+            $countryCode =
+                $request->has(
+                    'country_code'
+                )
+                    ? $request->country_code
+                    : $user->country_code;
+
+
+            $phoneNumber =
+                $request->has(
+                    'phone_number'
+                )
+                    ? $request->phone_number
+                    : $user->phone_number;
+
+
+            if (
+                $countryCode &&
+                $phoneNumber
+            ) {
+
+                $phoneExists =
+                    DB::table('users')
+
+                        ->where(
+                            'country_code',
+                            $countryCode
+                        )
+
+                        ->where(
+                            'phone_number',
+                            $phoneNumber
+                        )
+
+                        ->where(
+                            'id',
+                            '!=',
+                            $user->id
+                        )
+
+                        ->exists();
+
+
+                if ($phoneExists) {
+
+                    return response()->json([
+                        'status' => false,
+                        'message' =>
+                            'This phone number is already registered with another account.',
+                    ], 422);
+                }
+            }
+
+
+            DB::beginTransaction();
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Update Users Table
+            |--------------------------------------------------------------------------
+            */
+
+            $userData = [];
+
+
+            if (
+                $request->has(
+                    'full_name'
+                )
+            ) {
+
+                $userData[
+                    'full_name'
+                ] =
+                    $request->full_name;
+            }
+
+
+            if (
+                $request->has(
+                    'email'
+                )
+            ) {
+
+                $userData[
+                    'email'
+                ] =
+                    $request->email;
+            }
+
+
+            if (
+                $request->has(
+                    'country_code'
+                )
+            ) {
+
+                $userData[
+                    'country_code'
+                ] =
+                    $request->country_code;
+            }
+
+
+            if (
+                $request->has(
+                    'phone_number'
+                )
+            ) {
+
+                $userData[
+                    'phone_number'
+                ] =
+                    $request->phone_number;
+            }
+
+
+            if (
+                !empty(
+                    $userData
+                )
+            ) {
+
+                $userData[
+                    'updated_at'
+                ] =
+                    now();
+
+
+                DB::table('users')
+
+                    ->where(
+                        'id',
+                        $user->id
+                    )
+
+                    ->update(
+                        $userData
+                    );
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Rider Profile
+            |--------------------------------------------------------------------------
+            */
+
+            $riderProfile =
+                DB::table(
+                    'rider_profiles'
+                )
+
+                ->where(
+                    'user_id',
+                    $user->id
+                )
+
+                ->first();
+
+
+            $profileData = [];
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Address
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                $request->has(
+                    'address'
+                )
+            ) {
+
+                $profileData[
+                    'address'
+                ] =
+                    trim(
+                        $request->address
+                    );
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Profile Photo
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                $request->hasFile(
+                    'profile_photo'
+                )
+            ) {
+
+                /*
+                * Delete old image
+                */
+
+                if (
+                    $riderProfile &&
+                    !empty(
+                        $riderProfile
+                            ->profile_photo
+                    )
+                ) {
+
+                    Storage::disk(
+                        'public'
+                    )
+                    ->delete(
+                        $riderProfile
+                            ->profile_photo
+                    );
+                }
+
+
+                $profilePhoto =
+                    $request
+                        ->file(
+                            'profile_photo'
+                        )
+
+                        ->store(
+                            'riders/profile',
+                            'public'
+                        );
+
+
+                $profileData[
+                    'profile_photo'
+                ] =
+                    $profilePhoto;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Update / Insert Rider Profile
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                !empty(
+                    $profileData
+                )
+            ) {
+
+                $profileData[
+                    'updated_at'
+                ] =
+                    now();
+
+
+                if ($riderProfile) {
+
+                    DB::table(
+                        'rider_profiles'
+                    )
+
+                    ->where(
+                        'user_id',
+                        $user->id
+                    )
+
+                    ->update(
+                        $profileData
+                    );
+
+                } else {
+
+                    $profileData[
+                        'user_id'
+                    ] =
+                        $user->id;
+
+
+                    $profileData[
+                        'verification_status'
+                    ] =
+                        'pending';
+
+
+                    $profileData[
+                        'rejection_reason'
+                    ] =
+                        null;
+
+
+                    $profileData[
+                        'created_at'
+                    ] =
+                        now();
+
+
+                    DB::table(
+                        'rider_profiles'
+                    )
+
+                    ->insert(
+                        $profileData
+                    );
+                }
+            }
+
+
+            DB::commit();
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Updated Profile Response
+            |--------------------------------------------------------------------------
+            */
+
+            $profile =
+                DB::table('users as u')
+
+                    ->leftJoin(
+                        'rider_profiles as rp',
+                        'rp.user_id',
+                        '=',
+                        'u.id'
+                    )
+
+                    ->where(
+                        'u.id',
+                        $user->id
+                    )
+
+                    ->select(
+                        'u.id',
+                        'u.role',
+                        'u.full_name',
+                        'u.email',
+                        'u.country_code',
+                        'u.phone_number',
+
+                        'rp.address',
+                        'rp.profile_photo',
+                        'rp.verification_status',
+                        'rp.rejection_reason'
+                    )
+
+                    ->first();
+
+
+            $profile->profile_photo_url =
+                !empty(
+                    $profile->profile_photo
+                )
+                    ? asset(
+                        'storage/'
+                        . $profile->profile_photo
+                    )
+                    : null;
+
+
+            return response()->json([
+                'status' => true,
+                'message' =>
+                    'Rider profile updated successfully.',
+                'data' =>
+                    $profile,
+            ]);
+
+
+        } catch (
+            \Illuminate\Validation\ValidationException $e
+        ) {
+
+            if (
+                DB::transactionLevel()
+                > 0
+            ) {
+
+                DB::rollBack();
+            }
+
+
+            throw $e;
+
+
+        } catch (\Throwable $e) {
+
+            if (
+                DB::transactionLevel()
+                > 0
+            ) {
+
+                DB::rollBack();
+            }
+
+
+            return response()->json([
+                'status' => false,
+                'message' =>
+                    'Unable to update rider profile.',
+                'error' =>
+                    $e->getMessage(),
+            ], 500);
+        }
+    }
 }
