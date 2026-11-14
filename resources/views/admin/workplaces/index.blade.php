@@ -240,14 +240,28 @@ Companies and their branch addresses
                     data-id="{{ $workplace->id }}"
                 >
 
-                    <div class="inline-branch-row">
+                   <div class="inline-branch-row">
 
-                        <input
-                            class="input branch-address-input"
-                            type="text"
-                            placeholder="New branch address"
-                            autocomplete="off"
-                        />
+                        <div style="flex:1;">
+
+                            <input
+                                class="input branch-address-input"
+                                type="text"
+                                placeholder="New branch address"
+                                autocomplete="off"
+                            />
+
+                            <input
+                                type="hidden"
+                                class="branch-latitude"
+                            />
+
+                            <input
+                                type="hidden"
+                                class="branch-longitude"
+                            />
+
+                        </div>
 
                         <button
                             type="button"
@@ -489,9 +503,23 @@ Companies and their branch addresses
             </label>
 
             <input
-                class="input"
+                class="input branch-address-input"
                 id="company-branch"
+                type="text"
+                placeholder="Search branch address"
                 autocomplete="off"
+            >
+
+            <input
+                type="hidden"
+                id="company-branch-latitude"
+                class="branch-latitude"
+            >
+
+            <input
+                type="hidden"
+                id="company-branch-longitude"
+                class="branch-longitude"
             >
         </div>
 
@@ -518,4 +546,300 @@ Companies and their branch addresses
     </div>
 </div>
 
+
+<script
+    src="https://maps.googleapis.com/maps/api/js?key={{ config('services.google_maps.key') }}&loading=async"
+    async
+    defer
+></script>
+
+<script>
+    async function initGoogleAddressAutocomplete(row = null) {
+
+        const {
+            PlaceAutocompleteElement
+        } =
+            await google.maps.importLibrary(
+                "places"
+            );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Decide Which Input To Initialize
+        |--------------------------------------------------------------------------
+        */
+
+        let addressInput;
+        let latitudeInput;
+        let longitudeInput;
+
+
+        /*
+        * Inline branch row
+        */
+        if (row) {
+
+            addressInput =
+                row.querySelector(
+                    ".branch-address-input"
+                );
+
+            latitudeInput =
+                row.querySelector(
+                    ".branch-latitude"
+                );
+
+            longitudeInput =
+                row.querySelector(
+                    ".branch-longitude"
+                );
+
+        } else {
+
+            /*
+            * Add Company Modal
+            */
+
+            addressInput =
+                document.getElementById(
+                    "company-branch"
+                );
+
+            latitudeInput =
+                document.getElementById(
+                    "company-branch-latitude"
+                );
+
+            longitudeInput =
+                document.getElementById(
+                    "company-branch-longitude"
+                );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Validation
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            !addressInput ||
+            !latitudeInput ||
+            !longitudeInput
+        ) {
+            return;
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Avoid Duplicate Initialization
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            addressInput.dataset
+                .googleInitialized === "1"
+        ) {
+            return;
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Create Google Autocomplete
+        |--------------------------------------------------------------------------
+        */
+
+        const autocomplete =
+            new PlaceAutocompleteElement();
+
+
+        autocomplete.placeholder =
+            addressInput.placeholder
+            || "Search address";
+
+
+        autocomplete.style.width =
+            "100%";
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Hide Original Input
+        |--------------------------------------------------------------------------
+        */
+
+        addressInput.style.display =
+            "none";
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Insert Google Element
+        |--------------------------------------------------------------------------
+        */
+
+        addressInput.parentNode
+            .insertBefore(
+                autocomplete,
+                addressInput
+            );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Google Place Selected
+        |--------------------------------------------------------------------------
+        */
+
+        autocomplete.addEventListener(
+            "gmp-select",
+            async function (event) {
+
+                const prediction =
+                    event.placePrediction;
+
+
+                if (!prediction) {
+                    return;
+                }
+
+
+                const place =
+                    prediction.toPlace();
+
+
+                await place.fetchFields({
+                    fields: [
+                        "formattedAddress",
+                        "location"
+                    ]
+                });
+
+
+                if (!place.location) {
+
+                    addressInput.value =
+                        "";
+
+                    latitudeInput.value =
+                        "";
+
+                    longitudeInput.value =
+                        "";
+
+                    return;
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Store Values In Hidden Original Inputs
+                |--------------------------------------------------------------------------
+                */
+
+                addressInput.value =
+                    place.formattedAddress
+                    ?? "";
+
+
+                latitudeInput.value =
+                    place.location.lat();
+
+
+                longitudeInput.value =
+                    place.location.lng();
+
+
+                console.log(
+                    "Address:",
+                    addressInput.value
+                );
+
+                console.log(
+                    "Latitude:",
+                    latitudeInput.value
+                );
+
+                console.log(
+                    "Longitude:",
+                    longitudeInput.value
+                );
+            }
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Mark Initialized
+        |--------------------------------------------------------------------------
+        */
+
+        addressInput.dataset
+            .googleInitialized =
+            "1";
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Google Loaded
+    |--------------------------------------------------------------------------
+    */
+
+    window.addEventListener(
+        "load",
+        function () {
+
+            const timer =
+                setInterval(
+                    function () {
+
+                        if (
+                            typeof google !==
+                                "undefined"
+                            &&
+                            google.maps
+                        ) {
+
+                            clearInterval(
+                                timer
+                            );
+
+
+                            /*
+                            * Add Company Modal
+                            */
+
+                            initGoogleAddressAutocomplete();
+
+
+                            /*
+                            * Existing Inline Branch Rows
+                            */
+
+                            document
+                                .querySelectorAll(
+                                    ".inline-branch-row"
+                                )
+
+                                .forEach(
+                                    function (row) {
+
+                                        initGoogleAddressAutocomplete(
+                                            row
+                                        );
+                                    }
+                                );
+                        }
+
+                    },
+                    300
+                );
+        }
+    );
+</script>
 @endsection

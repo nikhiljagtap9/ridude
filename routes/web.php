@@ -102,7 +102,7 @@ Route::prefix('admin')
 
         Route::post(
             '/workplaces/{id}/branches',
-            [WorkplaceController::class, 'storeBranch']
+            [WorkplaceController::class, 'storeBranches']
         )->name('workplaces.branches.store');
 
         Route::delete(
