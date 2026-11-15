@@ -91,6 +91,16 @@ Route::prefix('admin')
         )->name('drivers.status');
 
         Route::get(
+            '/drivers-subscriptions',
+            [
+                DriverController::class,
+                'driverSubscriptions'
+            ]
+        )->name(
+            'drivers-subscriptions'
+        );
+
+        Route::get(
             '/workplaces',
             [WorkplaceController::class, 'index']
         )->name('workplaces.index');

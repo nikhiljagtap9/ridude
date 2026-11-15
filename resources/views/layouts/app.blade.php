@@ -294,8 +294,9 @@
 
 
             <a
-                class="nav-link"
-                href="#"
+                class="nav-link
+                {{ request()->routeIs('admin.drivers-subscriptions') ? 'active' : '' }}"
+                href="{{ route('admin.drivers-subscriptions') }}"
                 title="Driver Subscriptions"
             >
                 <svg

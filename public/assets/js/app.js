@@ -3703,33 +3703,109 @@
     }
 
     function initSubscriptions() {
+
         var plan = "all",
             driver = null;
+
+
         function update() {
+
             filterRows(function (row) {
+
                 return (
-                    (plan === "all" || row.dataset.plan === plan) &&
-                    (!driver || row.dataset.driver === driver)
+                    (
+                        plan === "all" ||
+                        row.dataset.plan === plan
+                    )
+                    &&
+                    (
+                        !driver ||
+                        row.dataset.driver === driver
+                    )
                 );
             });
-            all("#drivers [data-name]").forEach(function (button) {
-                button.classList.toggle(
-                    "selected",
-                    button.dataset.name === driver,
-                );
-            });
+
+
+            all(
+                "#drivers [data-name]"
+            ).forEach(
+                function (button) {
+
+                    button.classList.toggle(
+                        "selected",
+                        button.dataset.name === driver
+                    );
+                }
+            );
         }
-        initTabs(function (value) {
-            plan = value;
-            update();
-        });
-        $("#drivers").addEventListener("click", function (event) {
-            var button = event.target.closest("[data-name]");
-            if (!button) return;
-            driver =
-                driver === button.dataset.name ? null : button.dataset.name;
-            update();
-        });
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Plan Filter
+        |--------------------------------------------------------------------------
+        */
+
+        initTabs(
+            function (value) {
+
+                plan =
+                    value;
+
+                update();
+            }
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Driver Filter
+        |--------------------------------------------------------------------------
+        */
+
+        var driversContainer =
+            $("#drivers");
+
+
+        if (driversContainer) {
+
+            driversContainer.addEventListener(
+                "click",
+                function (event) {
+
+                    var button =
+                        event.target.closest(
+                            "[data-name]"
+                        );
+
+
+                    if (!button) {
+                        return;
+                    }
+
+
+                    driver =
+                        driver ===
+                            button.dataset.name
+
+                            ? null
+
+                            : button.dataset.name;
+
+
+                    update();
+                }
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Initial Filter
+        |--------------------------------------------------------------------------
+        */
+
+        update();
     }
 
     function initTrips() {
@@ -3821,6 +3897,8 @@
             update();
         });
     }
+
+
 
     function initCharts() {
         var tip = $(".chart-tip");

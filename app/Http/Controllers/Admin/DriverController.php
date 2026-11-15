@@ -396,4 +396,132 @@ class DriverController extends Controller
                     : 'Driver rejected successfully.'
         ]);
     }
+
+
+    
+
+    public function driverSubscriptions()
+    {
+        $drivers =
+            DB::table('users as u')
+
+            ->join(
+                'user_subscriptions as us',
+                'us.user_id',
+                '=',
+                'u.id'
+            )
+
+            ->where(
+                'u.role',
+                'driver'
+            )
+
+            ->select(
+
+                'u.id',
+
+                'u.full_name',
+
+                DB::raw(
+                    'COUNT(us.id) as payments_count'
+                ),
+
+                DB::raw(
+                    'SUM(us.price) as total_amount'
+                ),
+
+                DB::raw(
+                    'MAX(us.currency) as currency'
+                )
+            )
+
+            ->groupBy(
+                'u.id',
+                'u.full_name'
+            )
+
+            ->orderBy(
+                'u.full_name'
+            )
+
+            ->get();
+
+
+        $subscriptions =
+            DB::table(
+                'user_subscriptions as us'
+            )
+
+            ->join(
+                'users as u',
+                'u.id',
+                '=',
+                'us.user_id'
+            )
+
+            ->join(
+                'subscription_plans as sp',
+                'sp.id',
+                '=',
+                'us.subscription_plan_id'
+            )
+
+            ->where(
+                'u.role',
+                'driver'
+            )
+
+            ->select(
+
+                'us.id',
+
+                'us.user_id',
+
+                'u.full_name as driver_name',
+
+                'sp.name as plan_name',
+
+                'sp.slug as plan_slug',
+
+                'us.price',
+
+                'us.currency',
+
+                'us.billing_cycle',
+
+                'us.trial_start_at',
+
+                'us.trial_end_at',
+
+                'us.subscription_start_at',
+
+                'us.subscription_end_at',
+
+                'us.status',
+
+                'us.auto_renew',
+
+                'us.store',
+
+                'us.transaction_id',
+
+                'us.created_at'
+            )
+
+            ->orderByDesc(
+                'us.id'
+            )
+
+            ->get();
+
+
+        return view(
+            'admin.driver-subscriptions.index',
+            compact(
+                'drivers',
+                'subscriptions'
+            )
+        );
+    }
 }
