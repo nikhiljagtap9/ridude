@@ -18,7 +18,14 @@ class AuthController extends Controller
     {
         try {
 
+            /*
+            |--------------------------------------------------------------------------
+            | Validation
+            |--------------------------------------------------------------------------
+            */
+
             $request->validate([
+
                 'email' => [
                     'required',
                     'email',
@@ -33,17 +40,25 @@ class AuthController extends Controller
 
 
             /*
-             * Find user
-             */
+            |--------------------------------------------------------------------------
+            | Find User
+            |--------------------------------------------------------------------------
+            */
+
             $user = User::where(
                 'email',
-                strtolower(trim($request->email))
+                strtolower(
+                    trim($request->email)
+                )
             )->first();
 
 
             /*
-             * Check user/password
-             */
+            |--------------------------------------------------------------------------
+            | Check Email / Password
+            |--------------------------------------------------------------------------
+            */
+
             if (
                 !$user ||
                 !Hash::check(
@@ -53,115 +68,299 @@ class AuthController extends Controller
             ) {
 
                 return response()->json([
+
                     'status' => false,
-                    'message' => 'Invalid email or password.'
+
+                    'message' =>
+                        'Invalid email or password.'
+
                 ], 401);
             }
 
 
             /*
-             * Optional:
-             * prevent rejected users from login
-             */
-            if ($user->status === 'rejected') {
-
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Your account has been rejected.'
-                ], 403);
-            }
-
-
-            /*
-             * Optional:
-             * You can block under-review Drivers if needed.
-             *
-             * Currently I am allowing login and returning status
-             * so mobile app can show review screen.
-             */
-
-
-            /*
-             * Remove old tokens if you want
-             * only one active login/session.
-             *
-             * $user->tokens()->delete();
-             */
-
-
-            /*
-             * Create Sanctum token
-             */
-            $token = $user
-                ->createToken('ridude-mobile-app')
-                ->plainTextToken;
-
-
-            /*
-             * Role specific information
-             */
-            $profile = null;
+            |--------------------------------------------------------------------------
+            | Driver Status Check
+            |--------------------------------------------------------------------------
+            |
+            | Driver can login ONLY after admin approval.
+            |
+            */
 
             if ($user->role === 'driver') {
 
-                $profile = \DB::table('driver_profiles')
-                    ->where('user_id', $user->id)
+                if (
+                    $user->status !== 'approved'
+                ) {
+
+                    /*
+                    * Under Review
+                    */
+
+                    if (
+                        $user->status ===
+                        'under_review'
+                    ) {
+
+                        return response()->json([
+
+                            'status' => false,
+
+                            'message' =>
+                                'Your driver account is under review. Please wait for admin approval.',
+
+                            'account_status' =>
+                                $user->status,
+
+                        ], 403);
+                    }
+
+
+                    /*
+                    * Pending
+                    */
+
+                    if (
+                        $user->status ===
+                        'pending'
+                    ) {
+
+                        return response()->json([
+
+                            'status' => false,
+
+                            'message' =>
+                                'Your driver account is pending approval.',
+
+                            'account_status' =>
+                                $user->status,
+
+                        ], 403);
+                    }
+
+
+                    /*
+                    * Rejected
+                    */
+
+                    if (
+                        $user->status ===
+                        'rejected'
+                    ) {
+
+                        return response()->json([
+
+                            'status' => false,
+
+                            'message' =>
+                                'Your driver account has been rejected.',
+
+                            'account_status' =>
+                                $user->status,
+
+                        ], 403);
+                    }
+
+
+                    /*
+                    * Any Other Driver Status
+                    */
+
+                    return response()->json([
+
+                        'status' => false,
+
+                        'message' =>
+                            'Your driver account is not approved.',
+
+                        'account_status' =>
+                            $user->status,
+
+                    ], 403);
+                }
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Rider Status Check
+            |--------------------------------------------------------------------------
+            |
+            | Rider is automatically approved during registration.
+            | Still protect against rejected/disabled status if changed by admin.
+            |
+            */
+
+            if ($user->role === 'rider') {
+
+                if (
+                    $user->status === 'rejected'
+                ) {
+
+                    return response()->json([
+
+                        'status' => false,
+
+                        'message' =>
+                            'Your account has been rejected.',
+
+                    ], 403);
+                }
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Create Sanctum Token
+            |--------------------------------------------------------------------------
+            */
+
+            $token =
+                $user
+                    ->createToken(
+                        'ridude-mobile-app'
+                    )
+                    ->plainTextToken;
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Role Profile
+            |--------------------------------------------------------------------------
+            */
+
+            $profile = null;
+
+
+            if (
+                $user->role === 'driver'
+            ) {
+
+                $profile =
+                    \DB::table(
+                        'driver_profiles'
+                    )
+                    ->where(
+                        'user_id',
+                        $user->id
+                    )
                     ->first();
 
-            } elseif ($user->role === 'rider') {
+            } elseif (
+                $user->role === 'rider'
+            ) {
 
-                $profile = \DB::table('rider_profiles')
-                    ->where('user_id', $user->id)
+                $profile =
+                    \DB::table(
+                        'rider_profiles'
+                    )
+                    ->where(
+                        'user_id',
+                        $user->id
+                    )
                     ->first();
             }
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | Success Response
+            |--------------------------------------------------------------------------
+            */
+
             return response()->json([
-                'status' => true,
-                'message' => 'Login successful.',
+
+                'status' =>
+                    true,
+
+                'message' =>
+                    'Login successful.',
 
                 'data' => [
 
                     'user' => [
-                        'id' => $user->id,
-                        'role' => $user->role,
-                        'full_name' => $user->full_name,
-                        'email' => $user->email,
-                        'country_code' => $user->country_code,
-                        'phone_number' => $user->phone_number,
-                        'status' => $user->status,
+
+                        'id' =>
+                            $user->id,
+
+                        'role' =>
+                            $user->role,
+
+                        'full_name' =>
+                            $user->full_name,
+
+                        'email' =>
+                            $user->email,
+
+                        'country_code' =>
+                            $user->country_code,
+
+                        'phone_number' =>
+                            $user->phone_number,
+
+                        'status' =>
+                            $user->status,
                     ],
 
-                    'profile' => $profile,
+                    'profile' =>
+                        $profile,
 
-                    'token_type' => 'Bearer',
+                    'token_type' =>
+                        'Bearer',
 
-                    'token' => $token,
+                    'token' =>
+                        $token,
                 ]
 
             ], 200);
 
 
-        } catch (ValidationException $e) {
+        } catch (
+            ValidationException $e
+        ) {
 
             return response()->json([
-                'status' => false,
-                'message' => 'Validation failed.',
-                'errors' => $e->errors()
+
+                'status' =>
+                    false,
+
+                'message' =>
+                    'Validation failed.',
+
+                'errors' =>
+                    $e->errors()
+
             ], 422);
 
 
-        } catch (Throwable $e) {
+        } catch (
+            Throwable $e
+        ) {
 
-            \Log::error('RIDUDE Login Error', [
-                'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
+            \Log::error(
+                'RIDUDE Login Error',
+                [
+
+                    'message' =>
+                        $e->getMessage(),
+
+                    'file' =>
+                        $e->getFile(),
+
+                    'line' =>
+                        $e->getLine(),
+                ]
+            );
+
 
             return response()->json([
-                'status' => false,
-                'message' => 'Login failed. Please try again.'
+
+                'status' =>
+                    false,
+
+                'message' =>
+                    'Login failed. Please try again.'
+
             ], 500);
         }
     }
@@ -583,7 +782,14 @@ class AuthController extends Controller
                 'terms_accepted' =>
                     true,
 
-                'status' => 'under_review',
+                /*
+                * Driver requires admin approval.
+                * Rider is approved automatically.
+                */
+                'status' =>
+                    $request->role === 'driver'
+                        ? 'under_review'
+                        : 'approved',
 
                 'submitted_at' =>
                     now(),
