@@ -74,22 +74,22 @@ Route::middleware('auth:sanctum')
         );
 
         Route::post(
-            '/trips/{tripId}/start',
+            '/trip/start',
             [DriverTripController::class, 'startTrip']
         );
 
         Route::post(
-            '/trips/{tripId}/riders/{tripRiderId}/pickup',
+            '/trip/rider/pickup',
             [DriverTripController::class, 'pickupRider']
         );
 
         Route::post(
-            '/trips/{tripId}/riders/{tripRiderId}/dropoff',
+            '/trip/rider/dropoff',
             [DriverTripController::class, 'dropoffRider']
         );
 
         Route::post(
-            '/trips/{tripId}/complete',
+            '/trip/complete',
             [DriverTripController::class, 'completeTrip']
         );
 
@@ -125,8 +125,8 @@ Route::middleware('auth:sanctum')
             [RiderTripController::class, 'myTrips']
         );
 
-        Route::get(
-            '/trips/{tripId}',
+        Route::post(
+            '/trip-detail',
             [RiderTripController::class, 'tripDetail']
         );
 

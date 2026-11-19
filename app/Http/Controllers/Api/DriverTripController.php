@@ -1476,9 +1476,19 @@ class DriverTripController extends Controller
         ]);
     }
 
-    public function startTrip(Request $request,int $tripId) 
+    public function startTrip(Request $request)
     {
+        $request->validate([
+            'trip_id' => [
+                'required',
+                'integer',
+                'exists:trips,id'
+            ],
+        ]);
+
         $user = $request->user();
+
+        $tripId = (int) $request->trip_id;
 
 
         $updated = DB::table('trips')
@@ -1499,6 +1509,7 @@ class DriverTripController extends Controller
             )
 
             ->update([
+
                 'status' =>
                     'active',
 
@@ -1527,14 +1538,51 @@ class DriverTripController extends Controller
         ]);
     }
 
-    public function pickupRider(Request $request,int $tripId,int $tripRiderId) 
+    public function pickupRider(Request $request)
     {
-        $user = $request->user();
+        $request->validate([
+
+            'trip_id' => [
+                'required',
+                'integer',
+                'exists:trips,id'
+            ],
+
+            'trip_rider_id' => [
+                'required',
+                'integer',
+                'exists:trip_riders,id'
+            ],
+        ]);
+
+
+        $user =
+            $request->user();
+
+        $tripId =
+            (int) $request->trip_id;
+
+        $tripRiderId =
+            (int) $request->trip_rider_id;
+
 
         $trip = DB::table('trips')
-            ->where('id', $tripId)
-            ->where('driver_id', $user->id)
-            ->where('status', 'active')
+
+            ->where(
+                'id',
+                $tripId
+            )
+
+            ->where(
+                'driver_id',
+                $user->id
+            )
+
+            ->where(
+                'status',
+                'active'
+            )
+
             ->first();
 
 
@@ -1583,25 +1631,68 @@ class DriverTripController extends Controller
             ]);
 
 
-        return response()->json([
-            'status' =>
-                (bool) $updated,
+        if (!$updated) {
 
+            return response()->json([
+                'status' => false,
+                'message' =>
+                    'Unable to pickup rider.'
+            ], 422);
+        }
+
+
+        return response()->json([
+            'status' => true,
             'message' =>
-                $updated
-                    ? 'Rider picked up successfully.'
-                    : 'Unable to update rider.'
+                'Rider picked up successfully.'
         ]);
     }
 
-    public function dropoffRider(Request $request,int $tripId,int $tripRiderId) 
+    public function dropoffRider(Request $request)
     {
-        $user = $request->user();
+        $request->validate([
+
+            'trip_id' => [
+                'required',
+                'integer',
+                'exists:trips,id'
+            ],
+
+            'trip_rider_id' => [
+                'required',
+                'integer',
+                'exists:trip_riders,id'
+            ],
+        ]);
+
+
+        $user =
+            $request->user();
+
+        $tripId =
+            (int) $request->trip_id;
+
+        $tripRiderId =
+            (int) $request->trip_rider_id;
+
 
         $trip = DB::table('trips')
-            ->where('id', $tripId)
-            ->where('driver_id', $user->id)
-            ->where('status', 'active')
+
+            ->where(
+                'id',
+                $tripId
+            )
+
+            ->where(
+                'driver_id',
+                $user->id
+            )
+
+            ->where(
+                'status',
+                'active'
+            )
+
             ->first();
 
 
@@ -1645,20 +1736,40 @@ class DriverTripController extends Controller
             ]);
 
 
-        return response()->json([
-            'status' =>
-                (bool) $updated,
+        if (!$updated) {
 
+            return response()->json([
+                'status' => false,
+                'message' =>
+                    'Unable to drop off rider.'
+            ], 422);
+        }
+
+
+        return response()->json([
+            'status' => true,
             'message' =>
-                $updated
-                    ? 'Rider dropped off successfully.'
-                    : 'Unable to update rider.'
+                'Rider dropped off successfully.'
         ]);
     }
 
-    public function completeTrip(Request $request,int $tripId) 
+    public function completeTrip(Request $request)
     {
-        $user = $request->user();
+        $request->validate([
+
+            'trip_id' => [
+                'required',
+                'integer',
+                'exists:trips,id'
+            ],
+        ]);
+
+
+        $user =
+            $request->user();
+
+        $tripId =
+            (int) $request->trip_id;
 
 
         DB::beginTransaction();
@@ -1701,8 +1812,52 @@ class DriverTripController extends Controller
 
 
             /*
-            * Mark trip completed
+            |--------------------------------------------------------------------------
+            | Check Any Rider Still Picked Up
+            |--------------------------------------------------------------------------
             */
+
+            $pendingDropoff =
+                DB::table(
+                    'trip_riders'
+                )
+
+                ->where(
+                    'trip_id',
+                    $tripId
+                )
+
+                ->where(
+                    'booking_status',
+                    'confirmed'
+                )
+
+                ->where(
+                    'ride_status',
+                    'picked_up'
+                )
+
+                ->exists();
+
+
+            if ($pendingDropoff) {
+
+                DB::rollBack();
+
+                return response()->json([
+                    'status' => false,
+                    'message' =>
+                        'Please drop off all picked up riders before completing the trip.'
+                ], 422);
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Complete Trip
+            |--------------------------------------------------------------------------
+            */
+
             DB::table('trips')
 
                 ->where(
@@ -1724,8 +1879,11 @@ class DriverTripController extends Controller
 
 
             /*
-            * Mark rider bookings completed
+            |--------------------------------------------------------------------------
+            | Complete Rider Bookings
+            |--------------------------------------------------------------------------
             */
+
             DB::table('trip_riders')
 
                 ->where(
@@ -1762,12 +1920,26 @@ class DriverTripController extends Controller
 
             DB::rollBack();
 
+
+            \Log::error(
+                'Complete Trip Error',
+                [
+                    'trip_id' =>
+                        $tripId,
+
+                    'driver_id' =>
+                        $user->id,
+
+                    'error' =>
+                        $e->getMessage(),
+                ]
+            );
+
+
             return response()->json([
                 'status' => false,
                 'message' =>
-                    'Unable to complete trip.',
-                'error' =>
-                    $e->getMessage()
+                    'Unable to complete trip.'
             ], 500);
         }
     }

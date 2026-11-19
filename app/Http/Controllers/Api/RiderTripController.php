@@ -349,14 +349,30 @@ class RiderTripController extends Controller
     |--------------------------------------------------------------------------
     */
 
-    public function tripDetail(
-        Request $request,
-        int $tripId
-    ) {
+    public function tripDetail(Request $request)
+    {
+        $request->validate([
+            'trip_id' => [
+                'required',
+                'integer',
+                'exists:trips,id',
+            ],
+        ]);
+
 
         $user =
             $request->user();
 
+
+        $tripId =
+            (int) $request->trip_id;
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Allocated Trip Detail
+        |--------------------------------------------------------------------------
+        */
 
         $trip =
             DB::table(
@@ -409,6 +425,8 @@ class RiderTripController extends Controller
 
                 'tr.booking_status',
 
+                'tr.ride_status',
+
                 'tr.allocation_status',
 
                 'tr.fare_amount',
@@ -417,7 +435,27 @@ class RiderTripController extends Controller
 
                 'tr.pickup_distance_from_route',
 
+                'tr.pickup_address',
+
+                'tr.pickup_latitude',
+
+                'tr.pickup_longitude',
+
+                'tr.dropoff_address',
+
+                'tr.dropoff_latitude',
+
+                'tr.dropoff_longitude',
+
+                'tr.estimated_pickup_time',
+
+                'tr.stop_order',
+
                 'driver.full_name as driver_name',
+
+                'driver.country_code as driver_country_code',
+
+                'driver.phone_number as driver_phone_number',
 
                 'dp.profile_photo as driver_photo',
 
@@ -440,6 +478,27 @@ class RiderTripController extends Controller
                 'message' =>
                     'Trip not found.',
             ], 404);
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Driver Photo URL
+        |--------------------------------------------------------------------------
+        */
+
+        if (!empty($trip->driver_photo)) {
+
+            $trip->driver_photo_url =
+                asset(
+                    'storage/' .
+                    $trip->driver_photo
+                );
+
+        } else {
+
+            $trip->driver_photo_url =
+                null;
         }
 
 
@@ -485,7 +544,9 @@ class RiderTripController extends Controller
 
             ->select(
 
-                'tr.id',
+                'tr.id as trip_rider_id',
+
+                'tr.rider_id',
 
                 'tr.stop_order',
 
@@ -495,7 +556,15 @@ class RiderTripController extends Controller
 
                 'tr.pickup_longitude',
 
+                'tr.dropoff_address',
+
+                'tr.dropoff_latitude',
+
+                'tr.dropoff_longitude',
+
                 'tr.estimated_pickup_time',
+
+                'tr.ride_status',
 
                 'rider.full_name as rider_name'
             )
@@ -532,17 +601,32 @@ class RiderTripController extends Controller
             )
 
             ->select(
+
                 'pm.id',
+
                 'pm.name',
+
                 'pm.slug',
+
                 'pm.icon'
             )
 
             ->get();
 
 
+        /*
+        |--------------------------------------------------------------------------
+        | Response
+        |--------------------------------------------------------------------------
+        */
+
         return response()->json([
-            'status' => true,
+
+            'status' =>
+                true,
+
+            'message' =>
+                'Trip details fetched successfully.',
 
             'data' => [
 
@@ -555,7 +639,8 @@ class RiderTripController extends Controller
                 'payment_methods' =>
                     $paymentMethods,
             ]
-        ]);
+
+        ], 200);
     }
 
 
