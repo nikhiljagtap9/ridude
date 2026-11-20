@@ -77,6 +77,18 @@ class DriverTripController extends Controller
                     'in:home_to_work,work_to_home,both',
                 ],
 
+                'state_id' => [
+                    'required',
+                    'integer',
+                    'exists:states,id',
+                ],
+
+                'city_id' => [
+                    'required',
+                    'integer',
+                    'exists:cities,id',
+                ],
+
 
                 /*
                 * Home
@@ -176,6 +188,35 @@ class DriverTripController extends Controller
                     'max:8',
                 ],
             ]);
+            
+            /*
+              Selected city does not belong to selected state.   
+            */
+
+            $cityExists =
+                DB::table('cities')
+
+                ->where(
+                    'id',
+                    $request->city_id
+                )
+
+                ->where(
+                    'state_id',
+                    $request->state_id
+                )
+
+                ->exists();
+
+
+            if (!$cityExists) {
+
+                return response()->json([
+                    'status' => false,
+                    'message' =>
+                        'Selected city does not belong to selected state.'
+                ], 422);
+            }
 
 
             /*
@@ -737,6 +778,12 @@ class DriverTripController extends Controller
                 'home_longitude' =>
                     $request->home_longitude,
 
+                'state_id' =>
+                    $request->state_id,
+
+                'city_id' =>
+                    $request->city_id,    
+
                 'workplace_name' =>
                     $request->workplace_name,
 
@@ -885,6 +932,12 @@ class DriverTripController extends Controller
                             'start_name' =>
                                 'Home',
 
+                            'state_id' =>
+                                $request->state_id,
+
+                            'city_id' =>
+                                $request->city_id,    
+
                             'start_address' =>
                                 $request->home_address,
 
@@ -1025,6 +1078,12 @@ class DriverTripController extends Controller
                             */
                             'destination_name' =>
                                 'Home',
+
+                            'state_id' =>
+                                $request->state_id,
+
+                            'city_id' =>
+                                $request->city_id,    
 
                             'destination_address' =>
                                 $request->home_address,

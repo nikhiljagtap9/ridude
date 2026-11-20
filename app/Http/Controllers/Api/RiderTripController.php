@@ -37,6 +37,18 @@ class RiderTripController extends Controller
                     'in:home_to_work,work_to_home',
                 ],
 
+                'state_id' => [
+                    'required',
+                    'integer',
+                    'exists:states,id',
+                ],
+
+                'city_id' => [
+                    'required',
+                    'integer',
+                    'exists:cities,id',
+                ],
+
                 'pickup_address' => [
                     'required',
                     'string',
@@ -73,6 +85,36 @@ class RiderTripController extends Controller
                     'between:-180,180',
                 ],
             ]);
+
+
+            /*
+              Selected city does not belong to selected state.   
+            */
+
+            $cityExists =
+                DB::table('cities')
+
+                ->where(
+                    'id',
+                    $request->city_id
+                )
+
+                ->where(
+                    'state_id',
+                    $request->state_id
+                )
+
+                ->exists();
+
+
+            if (!$cityExists) {
+
+                return response()->json([
+                    'status' => false,
+                    'message' =>
+                        'Selected city does not belong to selected state.'
+                ], 422);
+            }
 
 
             /*
@@ -147,6 +189,12 @@ class RiderTripController extends Controller
 
                     'rider_id' =>
                         $user->id,
+
+                    'state_id' =>
+                        $request->state_id,
+
+                    'city_id' =>
+                        $request->city_id,    
 
                     'requested_trip_date' =>
                         $request->trip_date,

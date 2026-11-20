@@ -22,4 +22,21 @@ return [
      */
     'work_to_home_delay_minutes' => 10,
 
+
+
+    // selected state IDs
+    'selected_state_ids' =>
+        array_filter(
+            array_map(
+                'intval',
+                explode(
+                    ',',
+                    env(
+                        'SELECTED_STATE_IDS',
+                        ''
+                    )
+                )
+            )
+        ),
+
 ];

@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\SubscriptionPlanController;
 use App\Http\Controllers\Api\DriverTripController;
 use App\Http\Controllers\Api\RiderTripController;
 use App\Http\Controllers\Api\WorkplaceController;
+use App\Http\Controllers\Api\CommonController;
 
 /*
 |--------------------------------------------------------------------------
@@ -33,6 +34,16 @@ Route::post('/login', [
     AuthController::class,
     'login'
 ]);
+
+Route::get(
+    '/states',
+    [CommonController::class, 'states']
+);
+
+Route::get(
+    '/cities',
+    [CommonController::class, 'cities']
+);
 
 
 /*
