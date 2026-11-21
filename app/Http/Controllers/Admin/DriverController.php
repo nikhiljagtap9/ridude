@@ -524,4 +524,231 @@ class DriverController extends Controller
             )
         );
     }
+
+    public function exportDriverSubscriptions(Request $request)
+    {
+        $query =
+            DB::table('user_subscriptions as us')
+
+            ->join(
+                'users as u',
+                'u.id',
+                '=',
+                'us.user_id'
+            )
+
+            ->join(
+                'subscription_plans as sp',
+                'sp.id',
+                '=',
+                'us.subscription_plan_id'
+            )
+
+            ->where(
+                'u.role',
+                'driver'
+            )
+
+            ->select(
+                'us.id',
+                'us.user_id',
+
+                'u.full_name as driver_name',
+                'u.email as driver_email',
+
+                'sp.name as plan_name',
+
+                'us.price',
+                'us.currency',
+                'us.billing_cycle',
+
+                'us.trial_start_at',
+                'us.trial_end_at',
+
+                'us.subscription_start_at',
+                'us.subscription_end_at',
+
+                'us.status',
+                'us.auto_renew',
+                'us.store',
+                'us.transaction_id',
+
+                'us.created_at'
+            );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Driver Filter
+        |--------------------------------------------------------------------------
+        */
+
+        if ($request->filled('driver_id')) {
+
+            $query->where(
+                'us.user_id',
+                $request->driver_id
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Plan Filter
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            $request->filled('billing_cycle')
+            &&
+            in_array(
+                $request->billing_cycle,
+                [
+                    'week',
+                    'month',
+                ],
+                true
+            )
+        ) {
+
+            $query->where(
+                'us.billing_cycle',
+                $request->billing_cycle
+            );
+        }
+
+
+        $subscriptions =
+            $query
+                ->orderByDesc('us.id')
+                ->get();
+
+
+        $fileName =
+            'driver-subscriptions-'
+            . now()->format('Y-m-d-His')
+            . '.csv';
+
+
+        return response()->streamDownload(
+            function () use ($subscriptions) {
+
+                $handle =
+                    fopen(
+                        'php://output',
+                        'w'
+                    );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Header
+                |--------------------------------------------------------------------------
+                */
+
+                fputcsv(
+                    $handle,
+                    [
+                        'Subscription ID',
+                        'Driver',
+                        'Email',
+                        'Plan',
+                        'Billing Cycle',
+                        'Amount',
+                        'Currency',
+                        'Start Date',
+                        'End Date',
+                        'Status',
+                        'Auto Renew',
+                        'Store',
+                        'Transaction ID',
+                        'Created At',
+                    ]
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Rows
+                |--------------------------------------------------------------------------
+                */
+
+                foreach ($subscriptions as $subscription) {
+
+                    $startDate =
+                        $subscription->subscription_start_at
+                        ?? $subscription->trial_start_at;
+
+
+                    $endDate =
+                        $subscription->subscription_end_at
+                        ?? $subscription->trial_end_at;
+
+
+                    fputcsv(
+                        $handle,
+                        [
+                            'SUB-' . str_pad(
+                                $subscription->id,
+                                4,
+                                '0',
+                                STR_PAD_LEFT
+                            ),
+
+                            $subscription->driver_name,
+
+                            $subscription->driver_email,
+
+                            $subscription->plan_name,
+
+                            ucfirst(
+                                $subscription->billing_cycle
+                            ),
+
+                            number_format(
+                                (float) $subscription->price,
+                                2,
+                                '.',
+                                ''
+                            ),
+
+                            $subscription->currency,
+
+                            $startDate,
+
+                            $endDate,
+
+                            ucfirst(
+                                $subscription->status
+                            ),
+
+                            $subscription->auto_renew
+                                ? 'Yes'
+                                : 'No',
+
+                            $subscription->store
+                                ?? '',
+
+                            $subscription->transaction_id
+                                ?? '',
+
+                            $subscription->created_at,
+                        ]
+                    );
+                }
+
+
+                fclose(
+                    $handle
+                );
+            },
+
+            $fileName,
+
+            [
+                'Content-Type' =>
+                    'text/csv; charset=UTF-8',
+            ]
+        );
+    }
 }

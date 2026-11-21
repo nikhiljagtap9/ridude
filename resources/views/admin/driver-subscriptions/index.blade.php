@@ -38,6 +38,7 @@ Weekly and monthly subscription payments
                     <button
                         type="button"
                         class="card driver-card"
+                        data-id="{{ $driver->id }}"
                         data-name="{{ $driver->full_name }}"
                     >
 
@@ -104,12 +105,18 @@ Weekly and monthly subscription payments
         <div class="card reveal is-visible">
 
             {{-- =================================================
-                TABS
+                TABS + DRIVER FILTER
             ================================================== --}}
 
             <div
                 class="tabs"
                 id="tabs"
+                style="
+                    display:flex;
+                    align-items:center;
+                    gap:10px;
+                    flex-wrap:wrap;
+                "
             >
 
                 <button
@@ -140,6 +147,39 @@ Weekly and monthly subscription payments
                 >
                     Monthly
                 </button>
+
+
+                <select
+                    id="driver-filter"
+                    class="input"
+                    style="
+                        width:auto;
+                        min-width:220px;
+                        margin-left:auto;
+                    "
+                >
+                    <option value="">
+                        All Drivers
+                    </option>
+
+                    @foreach($drivers as $driver)
+
+                        <option
+                            value="{{ $driver->id }}"
+                        >
+                            {{ $driver->full_name }}
+                        </option>
+
+                    @endforeach
+                </select>
+
+                <a
+                    href="{{ route('admin.drivers-subscriptions.export') }}"
+                    class="btn btn-outline"
+                    id="subscription-export-btn"
+                >
+                    Export CSV
+                </a>
 
             </div>
 
@@ -231,6 +271,7 @@ Weekly and monthly subscription payments
                                     $subscription
                                         ->driver_name
                                 }}"
+                                data-driver-id="{{ $subscription->user_id }}"
                                 data-plan="{{
                                     $billingCycle
                                 }}"
@@ -455,7 +496,7 @@ Weekly and monthly subscription payments
 
                         @empty
 
-                            <tr class="empty-subscription-row">
+                            <tr class="empty-row">
 
                                 <td
                                     colspan="7"
@@ -484,5 +525,27 @@ Weekly and monthly subscription payments
         </div>
 
     </div>
+
+    <template id="empty-template">
+
+        <tr class="empty-row">
+
+            <td
+                colspan="7"
+                style="
+                    text-align:center;
+                    padding:30px;
+                "
+            >
+
+                <span class="muted">
+                    No subscriptions found.
+                </span>
+
+            </td>
+
+        </tr>
+
+    </template>
 
 @endsection

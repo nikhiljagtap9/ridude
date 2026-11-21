@@ -3704,26 +3704,95 @@
 
     function initSubscriptions() {
 
-        var plan = "all",
-            driver = null;
+        var plan =
+            "all";
+
+        var driver =
+            null;
+
+        var driverId =
+            null;
+
+
+        function updateExportUrl() {
+
+            var exportButton =
+                document.getElementById(
+                    "subscription-export-btn"
+                );
+
+
+            if (!exportButton) {
+                return;
+            }
+
+
+            var baseUrl =
+                exportButton
+                    .getAttribute(
+                        "data-base-url"
+                    )
+                ||
+                exportButton
+                    .href
+                    .split("?")[0];
+
+
+            var params =
+                new URLSearchParams();
+
+
+            if (driverId) {
+
+                params.set(
+                    "driver_id",
+                    driverId
+                );
+            }
+
+
+            if (
+                plan === "week" ||
+                plan === "month"
+            ) {
+
+                params.set(
+                    "billing_cycle",
+                    plan
+                );
+            }
+
+
+            exportButton.href =
+                params.toString()
+
+                    ? baseUrl
+                        + "?"
+                        + params.toString()
+
+                    : baseUrl;
+        }
 
 
         function update() {
 
-            filterRows(function (row) {
+            filterRows(
+                function (row) {
 
-                return (
-                    (
-                        plan === "all" ||
-                        row.dataset.plan === plan
-                    )
-                    &&
-                    (
-                        !driver ||
-                        row.dataset.driver === driver
-                    )
-                );
-            });
+                    return (
+                        (
+                            plan === "all" ||
+                            row.dataset.plan === plan
+                        )
+                        &&
+                        (
+                            !driverId ||
+                            row.dataset.driverId ===
+                                String(driverId)
+                        )
+                    );
+                }
+            );
 
 
             all(
@@ -3733,16 +3802,34 @@
 
                     button.classList.toggle(
                         "selected",
-                        button.dataset.name === driver
+                        String(
+                            button.dataset.id
+                        ) === String(
+                            driverId
+                        )
                     );
                 }
             );
+
+
+            var driverFilter =
+                $("#driver-filter");
+
+
+            if (driverFilter) {
+
+                driverFilter.value =
+                    driverId || "";
+            }
+
+
+            updateExportUrl();
         }
 
 
         /*
         |--------------------------------------------------------------------------
-        | Plan Filter
+        | Plan Tabs
         |--------------------------------------------------------------------------
         */
 
@@ -3759,17 +3846,17 @@
 
         /*
         |--------------------------------------------------------------------------
-        | Driver Filter
+        | Driver Cards
         |--------------------------------------------------------------------------
         */
 
-        var driversContainer =
+        var driversBox =
             $("#drivers");
 
 
-        if (driversContainer) {
+        if (driversBox) {
 
-            driversContainer.addEventListener(
+            driversBox.addEventListener(
                 "click",
                 function (event) {
 
@@ -3784,13 +3871,29 @@
                     }
 
 
-                    driver =
-                        driver ===
-                            button.dataset.name
+                    var selectedId =
+                        button.dataset.id;
 
-                            ? null
 
-                            : button.dataset.name;
+                    if (
+                        String(driverId)
+                        === String(selectedId)
+                    ) {
+
+                        driverId =
+                            null;
+
+                        driver =
+                            null;
+
+                    } else {
+
+                        driverId =
+                            selectedId;
+
+                        driver =
+                            button.dataset.name;
+                    }
 
 
                     update();
@@ -3801,9 +3904,43 @@
 
         /*
         |--------------------------------------------------------------------------
-        | Initial Filter
+        | Driver Dropdown
         |--------------------------------------------------------------------------
         */
+
+        var driverFilter =
+            $("#driver-filter");
+
+
+        if (driverFilter) {
+
+            driverFilter.addEventListener(
+                "change",
+                function () {
+
+                    driverId =
+                        this.value
+                            ? this.value
+                            : null;
+
+
+                    var selectedOption =
+                        this.options[
+                            this.selectedIndex
+                        ];
+
+
+                    driver =
+                        driverId
+                            ? selectedOption.dataset.name
+                            : null;
+
+
+                    update();
+                }
+            );
+        }
+
 
         update();
     }

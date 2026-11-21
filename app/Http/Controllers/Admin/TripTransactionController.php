@@ -282,4 +282,345 @@ class TripTransactionController extends Controller
             )
         );
     }
+
+    private function transactionQuery(Request $request)
+    {
+        /*
+        |--------------------------------------------------------------------------
+        | Driver Payment Methods
+        |--------------------------------------------------------------------------
+        */
+
+        $paymentMethodsSub =
+            DB::table(
+                'driver_payment_methods as dpm'
+            )
+
+            ->join(
+                'payment_methods as pm',
+                'pm.id',
+                '=',
+                'dpm.payment_method_id'
+            )
+
+            ->select(
+                'dpm.user_id',
+
+                DB::raw(
+                    "GROUP_CONCAT(
+                        DISTINCT pm.name
+                        ORDER BY pm.name
+                        SEPARATOR ', '
+                    ) as payment_methods"
+                )
+            )
+
+            ->where(
+                'pm.is_active',
+                1
+            )
+
+            ->groupBy(
+                'dpm.user_id'
+            );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Base Query
+        |--------------------------------------------------------------------------
+        */
+
+        $query =
+            DB::table(
+                'trip_riders as tr'
+            )
+
+            ->join(
+                'trips as t',
+                't.id',
+                '=',
+                'tr.trip_id'
+            )
+
+            ->join(
+                'users as rider',
+                'rider.id',
+                '=',
+                'tr.rider_id'
+            )
+
+            ->join(
+                'users as driver',
+                'driver.id',
+                '=',
+                't.driver_id'
+            )
+
+            ->leftJoinSub(
+                $paymentMethodsSub,
+                'driver_methods',
+                function ($join) {
+
+                    $join->on(
+                        'driver_methods.user_id',
+                        '=',
+                        'driver.id'
+                    );
+                }
+            )
+
+            ->select(
+                'tr.id as trip_rider_id',
+
+                't.id as trip_id',
+                't.trip_date',
+
+                'rider.full_name as rider_name',
+                'driver.full_name as driver_name',
+
+                'tr.fare_amount',
+                'tr.booking_status',
+
+                'driver_methods.payment_methods'
+            )
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Completed Transactions Only
+            |--------------------------------------------------------------------------
+            */
+
+            ->where(
+                'tr.booking_status',
+                'completed'
+            );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | From Date
+        |--------------------------------------------------------------------------
+        */
+
+        if ($request->filled('from')) {
+
+            $query->whereDate(
+                't.trip_date',
+                '>=',
+                $request->from
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | To Date
+        |--------------------------------------------------------------------------
+        */
+
+        if ($request->filled('to')) {
+
+            $query->whereDate(
+                't.trip_date',
+                '<=',
+                $request->to
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Search
+        |--------------------------------------------------------------------------
+        */
+
+        if ($request->filled('q')) {
+
+            $search =
+                trim(
+                    $request->q
+                );
+
+
+            $query->where(
+                function ($q) use ($search) {
+
+                    $q
+                        ->where(
+                            't.id',
+                            'like',
+                            '%' . $search . '%'
+                        )
+
+                        ->orWhere(
+                            'rider.full_name',
+                            'like',
+                            '%' . $search . '%'
+                        )
+
+                        ->orWhere(
+                            'driver.full_name',
+                            'like',
+                            '%' . $search . '%'
+                        );
+                }
+            );
+        }
+
+
+        return $query;
+    }
+
+    public function exportCsv(Request $request)
+    {
+        $request->validate([
+
+            'from' => [
+                'nullable',
+                'date',
+            ],
+
+            'to' => [
+                'nullable',
+                'date',
+                'after_or_equal:from',
+            ],
+
+            'q' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+        ]);
+
+
+        $transactions =
+            $this->transactionQuery(
+                $request
+            )
+
+            ->orderByDesc(
+                't.trip_date'
+            )
+
+            ->orderByDesc(
+                't.id'
+            )
+
+            ->get();
+
+
+        $fileName =
+            'trip-transactions-'
+            . now()->format(
+                'Y-m-d-His'
+            )
+            . '.csv';
+
+
+        return response()->streamDownload(
+            function () use ($transactions) {
+
+                $handle =
+                    fopen(
+                        'php://output',
+                        'w'
+                    );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | UTF-8 BOM
+                |--------------------------------------------------------------------------
+                */
+
+                fwrite(
+                    $handle,
+                    "\xEF\xBB\xBF"
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | CSV Header
+                |--------------------------------------------------------------------------
+                */
+
+                fputcsv(
+                    $handle,
+                    [
+                        'Trip ID',
+                        'Date',
+                        'Rider',
+                        'Driver',
+                        'Payment Method',
+                        'Fare',
+                        'Status',
+                    ]
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | CSV Rows
+                |--------------------------------------------------------------------------
+                */
+
+                foreach ($transactions as $transaction) {
+
+                    $status =
+                        $transaction->booking_status === 'completed'
+                            ? 'Paid'
+                            : ucfirst(
+                                str_replace(
+                                    '_',
+                                    ' ',
+                                    $transaction->booking_status
+                                )
+                            );
+
+
+                    fputcsv(
+                        $handle,
+                        [
+                            $transaction->trip_id,
+
+                            $transaction->trip_date,
+
+                            $transaction->rider_name,
+
+                            $transaction->driver_name,
+
+                            $transaction->payment_methods
+                                ?? '',
+
+                            number_format(
+                                (float)
+                                $transaction->fare_amount,
+                                2,
+                                '.',
+                                ''
+                            ),
+
+                            $status,
+                        ]
+                    );
+                }
+
+
+                fclose(
+                    $handle
+                );
+            },
+
+            $fileName,
+
+            [
+                'Content-Type' =>
+                    'text/csv; charset=UTF-8',
+            ]
+        );
+    }
 }

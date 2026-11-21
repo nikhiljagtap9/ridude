@@ -97,6 +97,77 @@
 
         <div class="row">
 
+            {{-- Driver --}}
+            <div class="field">
+
+                <label>
+                    Driver
+                </label>
+
+                <select
+                    name="driver_id"
+                    class="input"
+                >
+
+                    <option value="">
+                        All Drivers
+                    </option>
+
+                    @foreach($drivers as $driver)
+
+                        <option
+                            value="{{ $driver->id }}"
+                            @selected(
+                                request('driver_id')
+                                == $driver->id
+                            )
+                        >
+                            {{ $driver->full_name }}
+                        </option>
+
+                    @endforeach
+
+                </select>
+
+            </div>
+
+
+            {{-- Rider --}}
+            <div class="field">
+
+                <label>
+                    Rider
+                </label>
+
+                <select
+                    name="rider_id"
+                    class="input"
+                >
+
+                    <option value="">
+                        All Riders
+                    </option>
+
+                    @foreach($riders as $rider)
+
+                        <option
+                            value="{{ $rider->id }}"
+                            @selected(
+                                request('rider_id')
+                                == $rider->id
+                            )
+                        >
+                            {{ $rider->full_name }}
+                        </option>
+
+                    @endforeach
+
+                </select>
+
+            </div>
+
+
+            {{-- From --}}
             <div class="field">
 
                 <label for="from">
@@ -114,6 +185,7 @@
             </div>
 
 
+            {{-- To --}}
             <div class="field">
 
                 <label for="to">
@@ -130,36 +202,65 @@
 
             </div>
 
+        </div>
 
+
+        <div
+            class="row"
+            style="
+                margin-top:15px;
+                align-items:center;
+            "
+        >
+
+            {{-- Period --}}
             <div
                 class="tabs"
-                id="tabs"
-                style="margin: 0"
+                style="margin:0"
             >
 
                 <button
-                    type="button"
-                    aria-pressed="true"
-                    class="tab active"
-                    data-value="daily"
+                    type="submit"
+                    name="period"
+                    value="daily"
+                    class="tab {{
+                        request(
+                            'period',
+                            'daily'
+                        ) === 'daily'
+                            ? 'active'
+                            : ''
+                    }}"
                 >
                     Daily
                 </button>
 
+
                 <button
-                    type="button"
-                    aria-pressed="false"
-                    class="tab"
-                    data-value="weekly"
+                    type="submit"
+                    name="period"
+                    value="weekly"
+                    class="tab {{
+                        request('period')
+                        === 'weekly'
+                            ? 'active'
+                            : ''
+                    }}"
                 >
                     Weekly
                 </button>
 
+
                 <button
-                    type="button"
-                    aria-pressed="false"
-                    class="tab"
-                    data-value="monthly"
+                    type="submit"
+                    name="period"
+                    value="monthly"
+                    class="tab {{
+                        request('period')
+                        === 'monthly'
+                            ? 'active'
+                            : ''
+                    }}"
                 >
                     Monthly
                 </button>
@@ -167,6 +268,7 @@
             </div>
 
 
+            {{-- Normal Filter --}}
             <button
                 type="submit"
                 class="btn"
@@ -175,16 +277,31 @@
             </button>
 
 
-            @if(request('from') || request('to'))
+            {{-- Export --}}
+            <a
+                href="{{
+                    route(
+                        'admin.trips.export',
+                        request()->query()
+                    )
+                }}"
+                class="btn btn-outline"
+            >
+                Export CSV
+            </a>
 
-                <a
-                    href="{{ route('admin.trips.index') }}"
-                    class="btn btn-outline"
-                >
-                    Clear
-                </a>
 
-            @endif
+            {{-- Clear --}}
+            <a
+                href="{{
+                    route(
+                        'admin.trips.index'
+                    )
+                }}"
+                class="btn btn-outline"
+            >
+                Clear
+            </a>
 
         </div>
 

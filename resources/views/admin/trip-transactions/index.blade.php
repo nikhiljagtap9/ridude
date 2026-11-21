@@ -322,6 +322,23 @@ Fare payments from completed trips
 
             </div>
 
+            <div class="field">
+
+                <label>&nbsp;</label>
+
+                <a
+                    href="{{
+                        route(
+                            'admin.trip-transactions.export',
+                            request()->query()
+                        )
+                    }}"
+                    class="btn btn-outline"
+                >
+                    Export CSV
+                </a>
+
+            </div>
 
             @if(
                 request('from') ||
@@ -394,14 +411,15 @@ Fare payments from completed trips
                         <td>
 
                             <b>
-                                TRP-{{
+                                <!-- TRP-{{
                                     str_pad(
                                         $transaction->trip_id,
                                         5,
                                         '0',
                                         STR_PAD_LEFT
                                     )
-                                }}
+                                }} -->
+                                 {{   $transaction->trip_id }}
                             </b>
 
                         </td>

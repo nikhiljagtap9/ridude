@@ -101,6 +101,11 @@ Route::prefix('admin')
         );
 
         Route::get(
+            '/drivers-subscriptions/export',
+            [DriverController::class, 'exportDriverSubscriptions']
+        )->name('drivers-subscriptions.export');
+
+        Route::get(
             '/workplaces',
             [WorkplaceController::class, 'index']
         )->name('workplaces.index');
@@ -166,9 +171,19 @@ Route::prefix('admin')
         )->name('trips.index');
 
         Route::get(
+            '/trips/export',
+            [TripController::class, 'exportCsv']
+        )->name('trips.export');
+
+        Route::get(
             '/trip-transactions',
             [TripTransactionController::class, 'index']
         )->name('trip-transactions.index');
+
+        Route::get(
+            '/trip-transactions/export',
+            [TripTransactionController::class, 'exportCsv']
+        )->name('trip-transactions.export');
     
 
         Route::post(
