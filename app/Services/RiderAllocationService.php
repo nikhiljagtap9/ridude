@@ -38,8 +38,736 @@ class RiderAllocationService
     |--------------------------------------------------------------------------
     */
 
+    // public function allocateBestTrip(
+    //     int $tripRiderId
+    // ): array {
+
+    //     try {
+
+    //         /*
+    //         |--------------------------------------------------------------------------
+    //         | Pending Rider Request
+    //         |--------------------------------------------------------------------------
+    //         */
+
+    //         $request =
+    //             DB::table(
+    //                 'trip_riders'
+    //             )
+
+    //             ->where(
+    //                 'id',
+    //                 $tripRiderId
+    //             )
+
+    //             ->where(
+    //                 'allocation_status',
+    //                 'pending'
+    //             )
+
+    //             ->whereNull(
+    //                 'trip_id'
+    //             )
+
+    //             ->first();
+
+
+    //         if (!$request) {
+
+    //             return [
+    //                 'status' => false,
+    //                 'message' =>
+    //                     'Pending rider request not found.',
+    //             ];
+    //         }
+
+
+    //         if (
+    //             !$request->requested_trip_date
+    //             ||
+    //             !$request->requested_direction
+    //         ) {
+
+    //             return [
+    //                 'status' => false,
+    //                 'message' =>
+    //                     'Trip date or direction missing.',
+    //             ];
+    //         }
+
+
+    //         /*
+    //         |--------------------------------------------------------------------------
+    //         | Candidate Trips
+    //         |--------------------------------------------------------------------------
+    //         */
+
+    //         $query =
+    //             DB::table('trips')
+
+    //                 ->where(
+    //                     'trip_date',
+    //                     $request
+    //                         ->requested_trip_date
+    //                 )
+
+    //                 ->where(
+    //                     'direction',
+    //                     $request
+    //                         ->requested_direction
+    //                 )
+
+    //                 ->where(
+    //                     'status',
+    //                     'scheduled'
+    //                 )
+
+    //                 ->whereNotNull(
+    //                     'route_polyline'
+    //                 );
+
+
+    //         /*
+    //         |--------------------------------------------------------------------------
+    //         | Same Workplace
+    //         |--------------------------------------------------------------------------
+    //         */
+
+    //         if (
+    //             $request
+    //                 ->requested_direction
+    //             === 'home_to_work'
+    //         ) {
+
+    //             $query->where(
+    //                 'destination_address',
+    //                 $request
+    //                     ->dropoff_address
+    //             );
+
+    //         } else {
+
+    //             $query->where(
+    //                 'start_address',
+    //                 $request
+    //                     ->pickup_address
+    //             );
+    //         }
+
+
+    //         $trips =
+    //             $query->get();
+
+
+    //         if ($trips->isEmpty()) {
+
+    //             return [
+    //                 'status' => false,
+    //                 'message' =>
+    //                     'No matching driver trip found.',
+    //             ];
+    //         }
+
+
+    //         /*
+    //         |--------------------------------------------------------------------------
+    //         | Allocation Window - 4 Hours Before Trip
+    //         |--------------------------------------------------------------------------
+    //         |
+    //         | Example:
+    //         |
+    //         | Trip Time = 18:00
+    //         |
+    //         | 13:50 -> Not Eligible
+    //         | 14:00 -> Eligible
+    //         | 15:00 -> Eligible
+    //         | 17:50 -> Eligible
+    //         | 18:00 -> Not Eligible
+    //         |
+    //         */
+
+    //         $now =
+    //             Carbon::now(
+    //                 config('app.timezone')
+    //             );
+
+
+    //         $trips =
+    //             $trips
+    //                 ->filter(
+    //                     function ($trip) use ($now) {
+
+    //                         /*
+    //                         * Create complete trip datetime
+    //                         */
+
+    //                         $tripDateTime =
+    //                             Carbon::createFromFormat(
+    //                                 'Y-m-d H:i:s',
+    //                                 $trip->trip_date
+    //                                 . ' '
+    //                                 . $trip->departure_time,
+    //                                 config('app.timezone')
+    //                             );
+
+
+    //                         /*
+    //                         * Allocation starts 4 hours
+    //                         * before trip departure.
+    //                         */
+
+    //                         $allocationStartTime =
+    //                             $tripDateTime
+    //                                 ->copy()
+    //                                 ->subHours(4);
+
+
+    //                         /*
+    //                         * Eligible when:
+    //                         *
+    //                         * now >= trip time - 4 hours
+    //                         *
+    //                         * AND
+    //                         *
+    //                         * now < trip time
+    //                         */
+
+    //                         return
+    //                             $now->greaterThanOrEqualTo(
+    //                                 $allocationStartTime
+    //                             )
+    //                             &&
+    //                             $now->lessThan(
+    //                                 $tripDateTime
+    //                             );
+    //                     }
+    //                 )
+    //                 ->values();
+
+
+    //         /*
+    //         |--------------------------------------------------------------------------
+    //         | No Trip Inside Allocation Window
+    //         |--------------------------------------------------------------------------
+    //         */
+
+    //         if ($trips->isEmpty()) {
+
+    //             return [
+    //                 'status' => false,
+    //                 'message' =>
+    //                     'Matching trip found, but allocation will start only within 4 hours of trip time.',
+    //             ];
+    //         }
+
+
+    //         /*
+    //         |--------------------------------------------------------------------------
+    //         | Candidate Ranking
+    //         |--------------------------------------------------------------------------
+    //         */
+
+    //         $candidates = [];
+
+
+    //         foreach (
+    //             $trips as $trip
+    //         ) {
+
+    //             /*
+    //              * Pending with trip_id means seat
+    //              * is already temporarily reserved.
+    //              */
+
+    //             $filledSeats =
+    //                 DB::table(
+    //                     'trip_riders'
+    //                 )
+
+    //                 ->where(
+    //                     'trip_id',
+    //                     $trip->id
+    //                 )
+
+    //                 ->whereIn(
+    //                     'allocation_status',
+    //                     [
+    //                         'pending',
+    //                         'allocated',
+    //                         'finalized',
+    //                     ]
+    //                 )
+
+    //                 ->where(
+    //                     'booking_status',
+    //                     '!=',
+    //                     'cancelled'
+    //                 )
+
+    //                 ->count();
+
+
+    //             if (
+    //                 $filledSeats >=
+    //                 (int)
+    //                 $trip
+    //                     ->available_seats
+    //             ) {
+
+    //                 continue;
+    //             }
+
+
+    //             $pickupDistance =
+    //                 $this
+    //                     ->routeDistanceService
+    //                     ->distanceFromPolyline(
+
+    //                         (float)
+    //                         $request
+    //                             ->pickup_latitude,
+
+    //                         (float)
+    //                         $request
+    //                             ->pickup_longitude,
+
+    //                         $trip
+    //                             ->route_polyline
+    //                     );
+
+
+    //             if (
+    //                 !$pickupDistance[
+    //                     'status'
+    //                 ]
+    //             ) {
+
+    //                 continue;
+    //             }
+
+
+    //             $candidates[] = [
+
+    //                 'trip_id' =>
+    //                     (int)
+    //                     $trip->id,
+
+    //                 'pickup_distance' =>
+    //                     (float)
+    //                     $pickupDistance[
+    //                         'distance_miles'
+    //                     ],
+    //             ];
+    //         }
+
+
+    //         if (empty($candidates)) {
+
+    //             return [
+    //                 'status' => false,
+    //                 'message' =>
+    //                     'No driver with available seats found.',
+    //             ];
+    //         }
+
+
+    //         /*
+    //         |--------------------------------------------------------------------------
+    //         | Closest Route First
+    //         |--------------------------------------------------------------------------
+    //         */
+
+    //         usort(
+    //             $candidates,
+
+    //             function (
+    //                 array $a,
+    //                 array $b
+    //             ) {
+
+    //                 return
+    //                     $a[
+    //                         'pickup_distance'
+    //                     ]
+    //                     <=>
+    //                     $b[
+    //                         'pickup_distance'
+    //                     ];
+    //             }
+    //         );
+
+
+    //         /*
+    //         |--------------------------------------------------------------------------
+    //         | Try Candidate Trips
+    //         |--------------------------------------------------------------------------
+    //         */
+
+    //         foreach (
+    //             $candidates
+    //             as $candidate
+    //         ) {
+
+    //             DB::beginTransaction();
+
+
+    //             try {
+
+    //                 /*
+    //                 |--------------------------------------------------------------------------
+    //                 | Lock Driver Trip
+    //                 |--------------------------------------------------------------------------
+    //                 */
+
+    //                 $trip =
+    //                     DB::table('trips')
+
+    //                         ->where(
+    //                             'id',
+    //                             $candidate[
+    //                                 'trip_id'
+    //                             ]
+    //                         )
+
+    //                         ->where(
+    //                             'status',
+    //                             'scheduled'
+    //                         )
+
+    //                         ->lockForUpdate()
+
+    //                         ->first();
+
+
+    //                 if (!$trip) {
+
+    //                     DB::rollBack();
+
+    //                     continue;
+    //                 }
+
+
+    //                 /*
+    //                 |--------------------------------------------------------------------------
+    //                 | Recheck Seats
+    //                 |--------------------------------------------------------------------------
+    //                 */
+
+    //                 $filledSeats =
+    //                     DB::table(
+    //                         'trip_riders'
+    //                     )
+
+    //                     ->where(
+    //                         'trip_id',
+    //                         $trip->id
+    //                     )
+
+    //                     ->whereIn(
+    //                         'allocation_status',
+    //                         [
+    //                             'pending',
+    //                             'allocated',
+    //                             'finalized',
+    //                         ]
+    //                     )
+
+    //                     ->where(
+    //                         'booking_status',
+    //                         '!=',
+    //                         'cancelled'
+    //                     )
+
+    //                     ->count();
+
+
+    //                 if (
+    //                     $filledSeats >=
+    //                     (int)
+    //                     $trip
+    //                         ->available_seats
+    //                 ) {
+
+    //                     DB::rollBack();
+
+    //                     continue;
+    //                 }
+
+
+    //                 /*
+    //                 |--------------------------------------------------------------------------
+    //                 | Lock Pending Rider Request
+    //                 |--------------------------------------------------------------------------
+    //                 */
+
+    //                 $pendingRequest =
+    //                     DB::table(
+    //                         'trip_riders'
+    //                     )
+
+    //                     ->where(
+    //                         'id',
+    //                         $tripRiderId
+    //                     )
+
+    //                     ->where(
+    //                         'allocation_status',
+    //                         'pending'
+    //                     )
+
+    //                     ->whereNull(
+    //                         'trip_id'
+    //                     )
+
+    //                     ->lockForUpdate()
+
+    //                     ->first();
+
+
+    //                 if (!$pendingRequest) {
+
+    //                     DB::rollBack();
+
+    //                     return [
+    //                         'status' => false,
+    //                         'message' =>
+    //                             'Rider request already processed.',
+    //                     ];
+    //                 }
+
+
+    //                 /*
+    //                 |--------------------------------------------------------------------------
+    //                 | Stop Order
+    //                 |--------------------------------------------------------------------------
+    //                 */
+
+    //                 $lastStopOrder =
+    //                     DB::table(
+    //                         'trip_riders'
+    //                     )
+
+    //                     ->where(
+    //                         'trip_id',
+    //                         $trip->id
+    //                     )
+
+    //                     ->max(
+    //                         'stop_order'
+    //                     );
+
+
+    //                 $stopOrder =
+    //                     ((int)
+    //                         $lastStopOrder
+    //                     )
+    //                     + 1;
+
+
+    //                 /*
+    //                 |--------------------------------------------------------------------------
+    //                 | Assign Trip
+    //                 |--------------------------------------------------------------------------
+    //                 */
+
+    //                 DB::table(
+    //                     'trip_riders'
+    //                 )
+
+    //                 ->where(
+    //                     'id',
+    //                     $tripRiderId
+    //                 )
+
+    //                 ->update([
+
+    //                     'trip_id' =>
+    //                         $trip->id,
+
+    //                     'stop_order' =>
+    //                         $stopOrder,
+
+    //                     'updated_at' =>
+    //                         now(),
+    //                 ]);
+
+
+    //                 DB::commit();
+
+
+    //                 /*
+    //                 |--------------------------------------------------------------------------
+    //                 | Calculate Distance + Fare
+    //                 |--------------------------------------------------------------------------
+    //                 */
+
+    //                 $allocation =
+    //                     $this
+    //                         ->allocate(
+    //                             $tripRiderId
+    //                         );
+
+
+    //                 if (
+    //                     !$allocation[
+    //                         'status'
+    //                     ]
+    //                 ) {
+
+    //                     /*
+    //                      * Reset rider request
+    //                      * if Google/fare calculation fails.
+    //                      */
+
+    //                     DB::table(
+    //                         'trip_riders'
+    //                     )
+
+    //                     ->where(
+    //                         'id',
+    //                         $tripRiderId
+    //                     )
+
+    //                     ->update([
+
+    //                         'trip_id' =>
+    //                             null,
+
+    //                         'stop_order' =>
+    //                             0,
+
+    //                         'allocation_status' =>
+    //                             'pending',
+
+    //                         'allocated_at' =>
+    //                             null,
+
+    //                         'updated_at' =>
+    //                             now(),
+    //                     ]);
+
+
+    //                     return $allocation;
+    //                 }
+
+
+    //                 return [
+
+    //                     'status' =>
+    //                         true,
+
+    //                     'message' =>
+    //                         'Rider allocated successfully.',
+
+    //                     'trip_rider_id' =>
+    //                         $tripRiderId,
+
+    //                     'trip_id' =>
+    //                         $allocation[
+    //                             'trip_id'
+    //                         ],
+
+    //                     'driver_id' =>
+    //                         $allocation[
+    //                             'driver_id'
+    //                         ],
+
+    //                     'pickup_distance_from_route' =>
+    //                         $allocation[
+    //                             'pickup_distance_from_route'
+    //                         ],
+
+    //                     'rider_distance_miles' =>
+    //                         $allocation[
+    //                             'rider_distance_miles'
+    //                         ],
+
+    //                     'fare_level_no' =>
+    //                         $allocation[
+    //                             'fare_level_no'
+    //                         ],
+
+    //                     'fare_amount' =>
+    //                         $allocation[
+    //                             'fare_amount'
+    //                         ],
+    //                 ];
+
+
+    //             } catch (Throwable $e) {
+
+    //                 if (
+    //                     DB::transactionLevel()
+    //                     > 0
+    //                 ) {
+
+    //                     DB::rollBack();
+    //                 }
+
+
+    //                 Log::error(
+    //                     'Candidate rider allocation failed',
+    //                     [
+    //                         'trip_rider_id' =>
+    //                             $tripRiderId,
+
+    //                         'trip_id' =>
+    //                             $candidate[
+    //                                 'trip_id'
+    //                             ],
+
+    //                         'message' =>
+    //                             $e->getMessage(),
+    //                     ]
+    //                 );
+    //             }
+    //         }
+
+
+    //         return [
+    //             'status' => false,
+    //             'message' =>
+    //                 'No available driver could be allocated.',
+    //         ];
+
+
+    //     } catch (Throwable $e) {
+
+    //         if (
+    //             DB::transactionLevel()
+    //             > 0
+    //         ) {
+
+    //             DB::rollBack();
+    //         }
+
+
+    //         Log::error(
+    //             'Best trip allocation failed',
+    //             [
+    //                 'trip_rider_id' =>
+    //                     $tripRiderId,
+
+    //                 'message' =>
+    //                     $e->getMessage(),
+    //             ]
+    //         );
+
+
+    //         return [
+    //             'status' => false,
+    //             'message' =>
+    //                 'Unable to allocate rider.',
+
+    //             'error' =>
+    //                 $e->getMessage(),
+    //         ];
+    //     }
+    // }
+
+
     public function allocateBestTrip(
-        int $tripRiderId
+    int $tripRiderId
     ): array {
 
         try {
@@ -98,33 +826,138 @@ class RiderAllocationService
 
             /*
             |--------------------------------------------------------------------------
-            | Candidate Trips
+            | Requested Rider Shift Time
+            |--------------------------------------------------------------------------
+            |
+            | HOME -> WORK
+            | shift_start_time
+            |
+            | WORK -> HOME
+            | shift_end_time
+            |
+            */
+
+            $requestedTime =
+                null;
+
+
+            if (
+                $request->requested_direction
+                === 'home_to_work'
+            ) {
+
+                $requestedTime =
+                    $request->shift_start_time
+                    ?? null;
+
+
+                if (!$requestedTime) {
+
+                    return [
+                        'status' => false,
+                        'message' =>
+                            'Shift start time is required for Home to Work ride.',
+                    ];
+                }
+
+
+            } elseif (
+                $request->requested_direction
+                === 'work_to_home'
+            ) {
+
+                $requestedTime =
+                    $request->shift_end_time
+                    ?? null;
+
+
+                if (!$requestedTime) {
+
+                    return [
+                        'status' => false,
+                        'message' =>
+                            'Shift end time is required for Work to Home ride.',
+                    ];
+                }
+
+
+            } else {
+
+                return [
+                    'status' => false,
+                    'message' =>
+                        'Invalid rider trip direction.',
+                ];
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Normalize Requested Time
             |--------------------------------------------------------------------------
             */
 
+            $requestedTime =
+                Carbon::parse(
+                    $requestedTime
+                )
+                ->format(
+                    'H:i:s'
+                );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Candidate Trips
+            |--------------------------------------------------------------------------
+            |
+            | Match:
+            |
+            | 1. Same date
+            | 2. Same direction
+            | 3. Same shift/departure time
+            | 4. Same workplace
+            | 5. Scheduled trip
+            | 6. Inside 4-hour window
+            | 7. Scheduled trip
+            | 8. Seat available
+            | 9. Closest driver route
+            |
+            | State / City NOT matched here.
+            |
+            */
+
             $query =
-                DB::table('trips')
+                DB::table(
+                    'trips'
+                )
 
-                    ->where(
-                        'trip_date',
-                        $request
-                            ->requested_trip_date
-                    )
+                ->where(
+                    'trip_date',
+                    $request
+                        ->requested_trip_date
+                )
 
-                    ->where(
-                        'direction',
-                        $request
-                            ->requested_direction
-                    )
+                ->where(
+                    'direction',
+                    $request
+                        ->requested_direction
+                )
 
-                    ->where(
-                        'status',
-                        'scheduled'
-                    )
+                ->whereTime(
+                    'departure_time',
+                    '=',
+                    $requestedTime
+                )
 
-                    ->whereNotNull(
-                        'route_polyline'
-                    );
+                ->where(
+                    'status',
+                    'scheduled'
+                )
+
+                ->whereNotNull(
+                    'route_polyline'
+                );
 
 
             /*
@@ -139,13 +972,28 @@ class RiderAllocationService
                 === 'home_to_work'
             ) {
 
+                /*
+                * Driver destination
+                * must match rider dropoff workplace.
+                */
+
                 $query->where(
                     'destination_address',
                     $request
                         ->dropoff_address
                 );
 
-            } else {
+
+            } elseif (
+                $request
+                    ->requested_direction
+                === 'work_to_home'
+            ) {
+
+                /*
+                * Driver start workplace
+                * must match rider pickup workplace.
+                */
 
                 $query->where(
                     'start_address',
@@ -155,16 +1003,39 @@ class RiderAllocationService
             }
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | Get Candidate Trips
+            |--------------------------------------------------------------------------
+            */
+
             $trips =
                 $query->get();
 
 
-            if ($trips->isEmpty()) {
+            if (
+                $trips->isEmpty()
+            ) {
 
                 return [
                     'status' => false,
+
                     'message' =>
-                        'No matching driver trip found.',
+                        'No matching driver trip found for selected date, direction and shift time.',
+
+                    'data' => [
+
+                        'requested_trip_date' =>
+                            $request
+                                ->requested_trip_date,
+
+                        'requested_direction' =>
+                            $request
+                                ->requested_direction,
+
+                        'requested_time' =>
+                            $requestedTime,
+                    ],
                 ];
             }
 
@@ -188,61 +1059,69 @@ class RiderAllocationService
 
             $now =
                 Carbon::now(
-                    config('app.timezone')
+                    config(
+                        'app.timezone'
+                    )
                 );
 
 
             $trips =
                 $trips
-                    ->filter(
-                        function ($trip) use ($now) {
 
-                            /*
-                            * Create complete trip datetime
-                            */
+                ->filter(
+                    function ($trip) use ($now) {
 
-                            $tripDateTime =
-                                Carbon::createFromFormat(
-                                    'Y-m-d H:i:s',
-                                    $trip->trip_date
-                                    . ' '
-                                    . $trip->departure_time,
-                                    config('app.timezone')
-                                );
+                        /*
+                        * Complete trip datetime
+                        */
 
+                        $tripDateTime =
+                            Carbon::createFromFormat(
+                                'Y-m-d H:i:s',
 
-                            /*
-                            * Allocation starts 4 hours
-                            * before trip departure.
-                            */
+                                $trip->trip_date
+                                . ' '
+                                . $trip->departure_time,
 
-                            $allocationStartTime =
-                                $tripDateTime
-                                    ->copy()
-                                    ->subHours(4);
+                                config(
+                                    'app.timezone'
+                                )
+                            );
 
 
-                            /*
-                            * Eligible when:
-                            *
-                            * now >= trip time - 4 hours
-                            *
-                            * AND
-                            *
-                            * now < trip time
-                            */
+                        /*
+                        * Allocation starts
+                        * 4 hours before departure.
+                        */
 
-                            return
-                                $now->greaterThanOrEqualTo(
+                        $allocationStartTime =
+                            $tripDateTime
+                                ->copy()
+                                ->subHours(4);
+
+
+                        /*
+                        * Eligible:
+                        *
+                        * now >= departure - 4 hours
+                        * AND
+                        * now < departure
+                        */
+
+                        return
+                            $now
+                                ->greaterThanOrEqualTo(
                                     $allocationStartTime
                                 )
-                                &&
-                                $now->lessThan(
+                            &&
+                            $now
+                                ->lessThan(
                                     $tripDateTime
                                 );
-                        }
-                    )
-                    ->values();
+                    }
+                )
+
+                ->values();
 
 
             /*
@@ -251,10 +1130,13 @@ class RiderAllocationService
             |--------------------------------------------------------------------------
             */
 
-            if ($trips->isEmpty()) {
+            if (
+                $trips->isEmpty()
+            ) {
 
                 return [
                     'status' => false,
+
                     'message' =>
                         'Matching trip found, but allocation will start only within 4 hours of trip time.',
                 ];
@@ -267,7 +1149,8 @@ class RiderAllocationService
             |--------------------------------------------------------------------------
             */
 
-            $candidates = [];
+            $candidates =
+                [];
 
 
             foreach (
@@ -275,9 +1158,10 @@ class RiderAllocationService
             ) {
 
                 /*
-                 * Pending with trip_id means seat
-                 * is already temporarily reserved.
-                 */
+                |--------------------------------------------------------------------------
+                | Seat Availability
+                |--------------------------------------------------------------------------
+                */
 
                 $filledSeats =
                     DB::table(
@@ -308,7 +1192,8 @@ class RiderAllocationService
 
 
                 if (
-                    $filledSeats >=
+                    $filledSeats
+                    >=
                     (int)
                     $trip
                         ->available_seats
@@ -317,6 +1202,12 @@ class RiderAllocationService
                     continue;
                 }
 
+
+                /*
+                |--------------------------------------------------------------------------
+                | Rider Pickup Distance From Driver Route
+                |--------------------------------------------------------------------------
+                */
 
                 $pickupDistance =
                     $this
@@ -346,6 +1237,12 @@ class RiderAllocationService
                 }
 
 
+                /*
+                |--------------------------------------------------------------------------
+                | Add Candidate
+                |--------------------------------------------------------------------------
+                */
+
                 $candidates[] = [
 
                     'trip_id' =>
@@ -361,10 +1258,21 @@ class RiderAllocationService
             }
 
 
-            if (empty($candidates)) {
+            /*
+            |--------------------------------------------------------------------------
+            | No Available Candidate
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                empty(
+                    $candidates
+                )
+            ) {
 
                 return [
                     'status' => false,
+
                     'message' =>
                         'No driver with available seats found.',
                 ];
@@ -420,26 +1328,60 @@ class RiderAllocationService
                     */
 
                     $trip =
-                        DB::table('trips')
+                        DB::table(
+                            'trips'
+                        )
 
-                            ->where(
-                                'id',
-                                $candidate[
-                                    'trip_id'
-                                ]
-                            )
+                        ->where(
+                            'id',
+                            $candidate[
+                                'trip_id'
+                            ]
+                        )
 
-                            ->where(
-                                'status',
-                                'scheduled'
-                            )
+                        ->where(
+                            'status',
+                            'scheduled'
+                        )
 
-                            ->lockForUpdate()
+                        ->lockForUpdate()
 
-                            ->first();
+                        ->first();
 
 
                     if (!$trip) {
+
+                        DB::rollBack();
+
+                        continue;
+                    }
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Recheck Trip Time
+                    |--------------------------------------------------------------------------
+                    |
+                    | Candidate was selected before transaction.
+                    | Recheck same requested shift time after locking.
+                    |
+                    */
+
+                    $tripDepartureTime =
+                        Carbon::parse(
+                            $trip
+                                ->departure_time
+                        )
+                        ->format(
+                            'H:i:s'
+                        );
+
+
+                    if (
+                        $tripDepartureTime
+                        !==
+                        $requestedTime
+                    ) {
 
                         DB::rollBack();
 
@@ -482,7 +1424,8 @@ class RiderAllocationService
 
 
                     if (
-                        $filledSeats >=
+                        $filledSeats
+                        >=
                         (int)
                         $trip
                             ->available_seats
@@ -528,11 +1471,94 @@ class RiderAllocationService
 
                         DB::rollBack();
 
+
                         return [
                             'status' => false,
+
                             'message' =>
                                 'Rider request already processed.',
                         ];
+                    }
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Recheck Rider Requested Time
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if (
+                        $pendingRequest
+                            ->requested_direction
+                        === 'home_to_work'
+                    ) {
+
+                        $lockedRequestedTime =
+                            $pendingRequest
+                                ->shift_start_time
+                                ?? null;
+
+
+                    } elseif (
+                        $pendingRequest
+                            ->requested_direction
+                        === 'work_to_home'
+                    ) {
+
+                        $lockedRequestedTime =
+                            $pendingRequest
+                                ->shift_end_time
+                                ?? null;
+
+
+                    } else {
+
+                        DB::rollBack();
+
+
+                        return [
+                            'status' => false,
+
+                            'message' =>
+                                'Invalid rider trip direction.',
+                        ];
+                    }
+
+
+                    if (
+                        !$lockedRequestedTime
+                    ) {
+
+                        DB::rollBack();
+
+
+                        return [
+                            'status' => false,
+
+                            'message' =>
+                                'Rider shift time not found.',
+                        ];
+                    }
+
+
+                    $lockedRequestedTime =
+                        Carbon::parse(
+                            $lockedRequestedTime
+                        )
+                        ->format(
+                            'H:i:s'
+                        );
+
+
+                    if (
+                        $lockedRequestedTime
+                        !==
+                        $tripDepartureTime
+                    ) {
+
+                        DB::rollBack();
+
+                        continue;
                     }
 
 
@@ -608,6 +1634,12 @@ class RiderAllocationService
                             );
 
 
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Allocation / Fare Failed
+                    |--------------------------------------------------------------------------
+                    */
+
                     if (
                         !$allocation[
                             'status'
@@ -615,9 +1647,9 @@ class RiderAllocationService
                     ) {
 
                         /*
-                         * Reset rider request
-                         * if Google/fare calculation fails.
-                         */
+                        * Reset request if Google
+                        * route/fare calculation fails.
+                        */
 
                         DB::table(
                             'trip_riders'
@@ -647,9 +1679,16 @@ class RiderAllocationService
                         ]);
 
 
-                        return $allocation;
+                        return
+                            $allocation;
                     }
 
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Success
+                    |--------------------------------------------------------------------------
+                    */
 
                     return [
 
@@ -671,6 +1710,13 @@ class RiderAllocationService
                             $allocation[
                                 'driver_id'
                             ],
+
+                        'requested_direction' =>
+                            $request
+                                ->requested_direction,
+
+                        'requested_time' =>
+                            $requestedTime,
 
                         'pickup_distance_from_route' =>
                             $allocation[
@@ -716,16 +1762,38 @@ class RiderAllocationService
                                     'trip_id'
                                 ],
 
+                            'requested_direction' =>
+                                $request
+                                    ->requested_direction
+                                    ?? null,
+
+                            'requested_time' =>
+                                $requestedTime
+                                    ?? null,
+
                             'message' =>
                                 $e->getMessage(),
+
+                            'file' =>
+                                $e->getFile(),
+
+                            'line' =>
+                                $e->getLine(),
                         ]
                     );
                 }
             }
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | No Driver Allocated
+            |--------------------------------------------------------------------------
+            */
+
             return [
                 'status' => false,
+
                 'message' =>
                     'No available driver could be allocated.',
             ];
@@ -750,12 +1818,19 @@ class RiderAllocationService
 
                     'message' =>
                         $e->getMessage(),
+
+                    'file' =>
+                        $e->getFile(),
+
+                    'line' =>
+                        $e->getLine(),
                 ]
             );
 
 
             return [
                 'status' => false,
+
                 'message' =>
                     'Unable to allocate rider.',
 

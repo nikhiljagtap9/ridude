@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Throwable;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
 
 class RiderTripController extends Controller
@@ -16,6 +17,315 @@ class RiderTripController extends Controller
     |--------------------------------------------------------------------------
     */
 
+    // public function requestRide(
+    //     Request $request
+    // ) {
+    //     try {
+
+    //         $user =
+    //             $request->user();
+
+
+    //         $request->validate([
+
+    //             'trip_date' => [
+    //                 'required',
+    //                 'date',
+    //                 'after_or_equal:today',
+    //             ],
+
+    //             'direction' => [
+    //                 'required',
+    //                 'in:home_to_work,work_to_home,both',
+    //             ],
+
+    //             'state_id' => [
+    //                 'required',
+    //                 'integer',
+    //                 'exists:states,id',
+    //             ],
+
+    //             'city_id' => [
+    //                 'required',
+    //                 'integer',
+    //                 'exists:cities,id',
+    //             ],
+
+    //             'shift_start_time' => [
+    //                 'nullable',
+    //                 'required_if:direction,home_to_work,both',
+    //                 'date_format:H:i',
+    //             ],
+
+    //             'shift_end_time' => [
+    //                 'nullable',
+    //                 'required_if:direction,work_to_home,both',
+    //                 'date_format:H:i',
+    //             ],
+
+    //             'pickup_address' => [
+    //                 'required',
+    //                 'string',
+    //                 'max:255',
+    //             ],
+
+    //             'pickup_latitude' => [
+    //                 'required',
+    //                 'numeric',
+    //                 'between:-90,90',
+    //             ],
+
+    //             'pickup_longitude' => [
+    //                 'required',
+    //                 'numeric',
+    //                 'between:-180,180',
+    //             ],
+
+    //             'dropoff_address' => [
+    //                 'required',
+    //                 'string',
+    //                 'max:255',
+    //             ],
+
+    //             'dropoff_latitude' => [
+    //                 'required',
+    //                 'numeric',
+    //                 'between:-90,90',
+    //             ],
+
+    //             'dropoff_longitude' => [
+    //                 'required',
+    //                 'numeric',
+    //                 'between:-180,180',
+    //             ],
+    //         ]);
+
+
+    //         /*
+    //           Selected city does not belong to selected state.   
+    //         */
+
+    //         $cityExists =
+    //             DB::table('cities')
+
+    //             ->where(
+    //                 'id',
+    //                 $request->city_id
+    //             )
+
+    //             ->where(
+    //                 'state_id',
+    //                 $request->state_id
+    //             )
+
+    //             ->exists();
+
+
+    //         if (!$cityExists) {
+
+    //             return response()->json([
+    //                 'status' => false,
+    //                 'message' =>
+    //                     'Selected city does not belong to selected state.'
+    //             ], 422);
+    //         }
+
+
+    //         /*
+    //         |--------------------------------------------------------------------------
+    //         | Duplicate Request
+    //         |--------------------------------------------------------------------------
+    //         */
+
+    //         $existing =
+    //             DB::table(
+    //                 'trip_riders'
+    //             )
+
+    //             ->where(
+    //                 'rider_id',
+    //                 $user->id
+    //             )
+
+    //             ->where(
+    //                 'requested_trip_date',
+    //                 $request->trip_date
+    //             )
+
+    //             ->where(
+    //                 'requested_direction',
+    //                 $request->direction
+    //             )
+
+    //             ->whereIn(
+    //                 'allocation_status',
+    //                 [
+    //                     'pending',
+    //                     'allocated',
+    //                     'finalized',
+    //                 ]
+    //             )
+
+    //             ->where(
+    //                 'booking_status',
+    //                 '!=',
+    //                 'cancelled'
+    //             )
+
+    //             ->exists();
+
+
+    //         if ($existing) {
+
+    //             return response()->json([
+    //                 'status' => false,
+
+    //                 'message' =>
+    //                     'You already have a ride request for this date and direction.',
+    //             ], 422);
+    //         }
+
+
+    //         /*
+    //         |--------------------------------------------------------------------------
+    //         | Create Pending Request
+    //         |--------------------------------------------------------------------------
+    //         */
+
+    //         $tripRiderId =
+    //             DB::table(
+    //                 'trip_riders'
+    //             )
+    //             ->insertGetId([
+
+    //                 'trip_id' =>
+    //                     null,
+
+    //                 'rider_id' =>
+    //                     $user->id,
+
+    //                 'state_id' =>
+    //                     $request->state_id,
+
+    //                 'city_id' =>
+    //                     $request->city_id,    
+
+    //                 'requested_trip_date' =>
+    //                     $request->trip_date,
+
+    //                 'requested_direction' =>
+    //                     $request->direction,
+
+    //                 'shift_start_time' =>
+    //                     in_array(
+    //                         $request->direction,
+    //                         [
+    //                             'home_to_work',
+    //                             'both',
+    //                         ],
+    //                         true
+    //                     )
+    //                         ? $request->shift_start_time
+    //                         : null,
+
+    //                 'shift_end_time' =>
+    //                     in_array(
+    //                         $request->direction,
+    //                         [
+    //                             'work_to_home',
+    //                             'both',
+    //                         ],
+    //                         true
+    //                     )
+    //                         ? $request->shift_end_time
+    //                         : null,    
+
+    //                 'pickup_address' =>
+    //                     $request->pickup_address,
+
+    //                 'pickup_latitude' =>
+    //                     $request->pickup_latitude,
+
+    //                 'pickup_longitude' =>
+    //                     $request->pickup_longitude,
+
+    //                 'dropoff_address' =>
+    //                     $request->dropoff_address,
+
+    //                 'dropoff_latitude' =>
+    //                     $request->dropoff_latitude,
+
+    //                 'dropoff_longitude' =>
+    //                     $request->dropoff_longitude,
+
+    //                 'stop_order' =>
+    //                     0,
+
+    //                 'booking_status' =>
+    //                     'confirmed',
+
+    //                 'ride_status' =>
+    //                     'waiting',
+
+    //                 'fare_amount' =>
+    //                     0,
+
+    //                 'allocation_status' =>
+    //                     'pending',
+
+    //                 'allocation_type' =>
+    //                     'auto',
+
+    //                 'allocated_at' =>
+    //                     null,
+
+    //                 'created_at' =>
+    //                     now(),
+
+    //                 'updated_at' =>
+    //                     now(),
+    //             ]);
+
+
+    //         return response()->json([
+    //             'status' => true,
+
+    //             'message' =>
+    //                 'Ride request submitted successfully.',
+
+    //             'data' => [
+
+    //                 'trip_rider_id' =>
+    //                     $tripRiderId,
+
+    //                 'allocation_status' =>
+    //                     'pending',
+
+    //                 'trip_date' =>
+    //                     $request->trip_date,
+
+    //                 'direction' =>
+    //                     $request->direction,
+    //             ]
+
+    //         ], 201);
+
+
+    //     } catch (Throwable $e) {
+
+    //         return response()->json([
+    //             'status' => false,
+
+    //             'message' =>
+    //                 'Unable to submit ride request.',
+
+    //             'error' =>
+    //                 $e->getMessage(),
+
+    //         ], 500);
+    //     }
+    // }
+
     public function requestRide(
         Request $request
     ) {
@@ -24,6 +334,12 @@ class RiderTripController extends Controller
             $user =
                 $request->user();
 
+
+            /*
+            |--------------------------------------------------------------------------
+            | Validation
+            |--------------------------------------------------------------------------
+            */
 
             $request->validate([
 
@@ -35,7 +351,7 @@ class RiderTripController extends Controller
 
                 'direction' => [
                     'required',
-                    'in:home_to_work,work_to_home',
+                    'in:home_to_work,work_to_home,both',
                 ],
 
                 'state_id' => [
@@ -48,6 +364,24 @@ class RiderTripController extends Controller
                     'required',
                     'integer',
                     'exists:cities,id',
+                ],
+
+                /*
+                * HOME -> WORK
+                */
+                'shift_start_time' => [
+                    'nullable',
+                    'required_if:direction,home_to_work,both',
+                    'date_format:H:i',
+                ],
+
+                /*
+                * WORK -> HOME
+                */
+                'shift_end_time' => [
+                    'nullable',
+                    'required_if:direction,work_to_home,both',
+                    'date_format:H:i',
                 ],
 
                 'pickup_address' => [
@@ -89,7 +423,9 @@ class RiderTripController extends Controller
 
 
             /*
-              Selected city does not belong to selected state.   
+            |--------------------------------------------------------------------------
+            | City Must Belong To Selected State
+            |--------------------------------------------------------------------------
             */
 
             $cityExists =
@@ -112,172 +448,509 @@ class RiderTripController extends Controller
 
                 return response()->json([
                     'status' => false,
+
                     'message' =>
-                        'Selected city does not belong to selected state.'
+                        'Selected city does not belong to selected state.',
+
                 ], 422);
             }
 
 
             /*
             |--------------------------------------------------------------------------
-            | Duplicate Request
+            | Both Direction Time Validation
             |--------------------------------------------------------------------------
             */
 
-            $existing =
-                DB::table(
-                    'trip_riders'
-                )
+            if (
+                $request->direction === 'both'
+                &&
+                $request->shift_start_time
+                &&
+                $request->shift_end_time
+            ) {
 
-                ->where(
-                    'rider_id',
-                    $user->id
-                )
+                $shiftStart =
+                    Carbon::createFromFormat(
+                        'H:i',
+                        $request->shift_start_time
+                    );
 
-                ->where(
-                    'requested_trip_date',
-                    $request->trip_date
-                )
 
-                ->where(
-                    'requested_direction',
-                    $request->direction
-                )
+                $shiftEnd =
+                    Carbon::createFromFormat(
+                        'H:i',
+                        $request->shift_end_time
+                    );
 
-                ->whereIn(
-                    'allocation_status',
-                    [
-                        'pending',
-                        'allocated',
-                        'finalized',
+
+                if (
+                    $shiftEnd->lessThanOrEqualTo(
+                        $shiftStart
+                    )
+                ) {
+
+                    return response()->json([
+                        'status' => false,
+
+                        'message' =>
+                            'Shift end time must be after shift start time.',
+
+                    ], 422);
+                }
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Directions To Create
+            |--------------------------------------------------------------------------
+            |
+            | both:
+            |
+            | Row 1 = home_to_work
+            | Row 2 = work_to_home
+            |
+            */
+
+            $directions =
+                $request->direction === 'both'
+                    ? [
+                        'home_to_work',
+                        'work_to_home',
                     ]
-                )
-
-                ->where(
-                    'booking_status',
-                    '!=',
-                    'cancelled'
-                )
-
-                ->exists();
+                    : [
+                        $request->direction,
+                    ];
 
 
-            if ($existing) {
+            /*
+            |--------------------------------------------------------------------------
+            | Duplicate Check
+            |--------------------------------------------------------------------------
+            */
 
-                return response()->json([
-                    'status' => false,
+            foreach (
+                $directions as $direction
+            ) {
 
-                    'message' =>
-                        'You already have a ride request for this date and direction.',
-                ], 422);
+                $existing =
+                    DB::table(
+                        'trip_riders'
+                    )
+
+                    ->where(
+                        'rider_id',
+                        $user->id
+                    )
+
+                    ->where(
+                        'requested_trip_date',
+                        $request->trip_date
+                    )
+
+                    ->where(
+                        'requested_direction',
+                        $direction
+                    )
+
+                    ->whereIn(
+                        'allocation_status',
+                        [
+                            'pending',
+                            'allocated',
+                            'finalized',
+                        ]
+                    )
+
+                    ->where(
+                        'booking_status',
+                        '!=',
+                        'cancelled'
+                    )
+
+                    ->exists();
+
+
+                if ($existing) {
+
+                    $directionName =
+                        $direction === 'home_to_work'
+                            ? 'Home to Work'
+                            : 'Work to Home';
+
+
+                    return response()->json([
+                        'status' => false,
+
+                        'message' =>
+                            'You already have a '
+                            . $directionName
+                            . ' ride request for this date.',
+
+                    ], 422);
+                }
             }
 
 
             /*
             |--------------------------------------------------------------------------
-            | Create Pending Request
+            | Start Transaction
             |--------------------------------------------------------------------------
             */
 
-            $tripRiderId =
-                DB::table(
-                    'trip_riders'
-                )
-                ->insertGetId([
+            DB::beginTransaction();
 
-                    'trip_id' =>
-                        null,
 
-                    'rider_id' =>
-                        $user->id,
+            $createdRequests =
+                [];
 
-                    'state_id' =>
-                        $request->state_id,
 
-                    'city_id' =>
-                        $request->city_id,    
+            /*
+            |--------------------------------------------------------------------------
+            | Create Required Request Rows
+            |--------------------------------------------------------------------------
+            */
 
-                    'requested_trip_date' =>
+            foreach (
+                $directions as $direction
+            ) {
+
+                /*
+                |--------------------------------------------------------------------------
+                | HOME -> WORK
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                    $direction === 'home_to_work'
+                ) {
+
+                    $pickupAddress =
+                        $request->pickup_address;
+
+                    $pickupLatitude =
+                        $request->pickup_latitude;
+
+                    $pickupLongitude =
+                        $request->pickup_longitude;
+
+
+                    $dropoffAddress =
+                        $request->dropoff_address;
+
+                    $dropoffLatitude =
+                        $request->dropoff_latitude;
+
+                    $dropoffLongitude =
+                        $request->dropoff_longitude;
+
+
+                    $shiftStartTime =
+                        $request->shift_start_time;
+
+                    $shiftEndTime =
+                        null;
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | WORK -> HOME
+                |--------------------------------------------------------------------------
+                |
+                | When "both" is selected:
+                |
+                | HOME -> WORK
+                | pickup  = Home
+                | dropoff = Work
+                |
+                | WORK -> HOME
+                | pickup  = Work
+                | dropoff = Home
+                |
+                */
+
+                else {
+
+                    if (
+                        $request->direction === 'both'
+                    ) {
+
+                        /*
+                        * Reverse route
+                        */
+
+                        $pickupAddress =
+                            $request->dropoff_address;
+
+                        $pickupLatitude =
+                            $request->dropoff_latitude;
+
+                        $pickupLongitude =
+                            $request->dropoff_longitude;
+
+
+                        $dropoffAddress =
+                            $request->pickup_address;
+
+                        $dropoffLatitude =
+                            $request->pickup_latitude;
+
+                        $dropoffLongitude =
+                            $request->pickup_longitude;
+
+                    } else {
+
+                        /*
+                        * Single work_to_home request.
+                        *
+                        * Request already contains actual
+                        * work -> home pickup/dropoff.
+                        */
+
+                        $pickupAddress =
+                            $request->pickup_address;
+
+                        $pickupLatitude =
+                            $request->pickup_latitude;
+
+                        $pickupLongitude =
+                            $request->pickup_longitude;
+
+
+                        $dropoffAddress =
+                            $request->dropoff_address;
+
+                        $dropoffLatitude =
+                            $request->dropoff_latitude;
+
+                        $dropoffLongitude =
+                            $request->dropoff_longitude;
+                    }
+
+
+                    $shiftStartTime =
+                        null;
+
+                    $shiftEndTime =
+                        $request->shift_end_time;
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Insert Pending Rider Request
+                |--------------------------------------------------------------------------
+                */
+
+                $tripRiderId =
+                    DB::table(
+                        'trip_riders'
+                    )
+
+                    ->insertGetId([
+
+                        'trip_id' =>
+                            null,
+
+                        'rider_id' =>
+                            $user->id,
+
+                        'state_id' =>
+                            $request->state_id,
+
+                        'city_id' =>
+                            $request->city_id,
+
+                        'requested_trip_date' =>
+                            $request->trip_date,
+
+                        'requested_direction' =>
+                            $direction,
+
+                        'shift_start_time' =>
+                            $shiftStartTime,
+
+                        'shift_end_time' =>
+                            $shiftEndTime,
+
+
+                        /*
+                        * Pickup
+                        */
+
+                        'pickup_address' =>
+                            $pickupAddress,
+
+                        'pickup_latitude' =>
+                            $pickupLatitude,
+
+                        'pickup_longitude' =>
+                            $pickupLongitude,
+
+
+                        /*
+                        * Dropoff
+                        */
+
+                        'dropoff_address' =>
+                            $dropoffAddress,
+
+                        'dropoff_latitude' =>
+                            $dropoffLatitude,
+
+                        'dropoff_longitude' =>
+                            $dropoffLongitude,
+
+
+                        /*
+                        * Booking
+                        */
+
+                        'stop_order' =>
+                            0,
+
+                        'booking_status' =>
+                            'confirmed',
+
+                        'ride_status' =>
+                            'waiting',
+
+                        'fare_amount' =>
+                            0,
+
+
+                        /*
+                        * Allocation
+                        */
+
+                        'allocation_status' =>
+                            'pending',
+
+                        'allocation_type' =>
+                            'auto',
+
+                        'allocated_at' =>
+                            null,
+
+
+                        /*
+                        * Dates
+                        */
+
+                        'created_at' =>
+                            now(),
+
+                        'updated_at' =>
+                            now(),
+                    ]);
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Response Data
+                |--------------------------------------------------------------------------
+                */
+
+                $createdRequests[] = [
+
+                    'trip_rider_id' =>
+                        $tripRiderId,
+
+                    'direction' =>
+                        $direction,
+
+                    'shift_start_time' =>
+                        $shiftStartTime,
+
+                    'shift_end_time' =>
+                        $shiftEndTime,
+
+                    'pickup_address' =>
+                        $pickupAddress,
+
+                    'dropoff_address' =>
+                        $dropoffAddress,
+
+                    'allocation_status' =>
+                        'pending',
+                ];
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Commit
+            |--------------------------------------------------------------------------
+            */
+
+            DB::commit();
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Response
+            |--------------------------------------------------------------------------
+            */
+
+            return response()->json([
+
+                'status' =>
+                    true,
+
+                'message' =>
+                    $request->direction === 'both'
+                        ? 'Home to Work and Work to Home ride requests submitted successfully.'
+                        : 'Ride request submitted successfully.',
+
+                'data' => [
+
+                    'trip_date' =>
                         $request->trip_date,
 
                     'requested_direction' =>
                         $request->direction,
 
-                    'pickup_address' =>
-                        $request->pickup_address,
-
-                    'pickup_latitude' =>
-                        $request->pickup_latitude,
-
-                    'pickup_longitude' =>
-                        $request->pickup_longitude,
-
-                    'dropoff_address' =>
-                        $request->dropoff_address,
-
-                    'dropoff_latitude' =>
-                        $request->dropoff_latitude,
-
-                    'dropoff_longitude' =>
-                        $request->dropoff_longitude,
-
-                    'stop_order' =>
-                        0,
-
-                    'booking_status' =>
-                        'confirmed',
-
-                    'ride_status' =>
-                        'waiting',
-
-                    'fare_amount' =>
-                        0,
-
-                    'allocation_status' =>
-                        'pending',
-
-                    'allocation_type' =>
-                        'auto',
-
-                    'allocated_at' =>
-                        null,
-
-                    'created_at' =>
-                        now(),
-
-                    'updated_at' =>
-                        now(),
-                ]);
-
-
-            return response()->json([
-                'status' => true,
-
-                'message' =>
-                    'Ride request submitted successfully.',
-
-                'data' => [
-
-                    'trip_rider_id' =>
-                        $tripRiderId,
-
-                    'allocation_status' =>
-                        'pending',
-
-                    'trip_date' =>
-                        $request->trip_date,
-
-                    'direction' =>
-                        $request->direction,
+                    'requests' =>
+                        $createdRequests,
                 ]
 
             ], 201);
 
 
-        } catch (Throwable $e) {
+        } catch (
+            \Illuminate\Validation\ValidationException $e
+        ) {
 
             return response()->json([
-                'status' => false,
+
+                'status' =>
+                    false,
+
+                'message' =>
+                    'Validation failed.',
+
+                'errors' =>
+                    $e->errors(),
+
+            ], 422);
+
+
+        } catch (Throwable $e) {
+
+            if (
+                DB::transactionLevel() > 0
+            ) {
+
+                DB::rollBack();
+            }
+
+
+            return response()->json([
+
+                'status' =>
+                    false,
 
                 'message' =>
                     'Unable to submit ride request.',
