@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\DriverTripController;
 use App\Http\Controllers\Api\RiderTripController;
 use App\Http\Controllers\Api\WorkplaceController;
 use App\Http\Controllers\Api\CommonController;
+use App\Http\Controllers\Api\FareController;
 
 /*
 |--------------------------------------------------------------------------
@@ -162,6 +163,11 @@ Route::middleware('auth:sanctum')
         Route::post(
             '/profile',
             [RiderTripController::class, 'updateProfile']
+        );
+
+        Route::post(
+            '/fare/calculate',
+            [FareController::class, 'calculate']
         );
 });
 
