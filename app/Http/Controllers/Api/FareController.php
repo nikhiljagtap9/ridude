@@ -3,18 +3,49 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\Admin\FareCalculationController;
+use App\Services\DriverRouteService;
+use App\Services\FareCalculationService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class FareController extends Controller
 {
+    protected FareCalculationService $fareService;
+
+    protected DriverRouteService $routeService;
+
+
+    public function __construct(
+        FareCalculationService $fareService,
+        DriverRouteService $routeService
+    ) {
+        $this->fareService =
+            $fareService;
+
+        $this->routeService =
+            $routeService;
+    }
+
+
     /*
     |--------------------------------------------------------------------------
     | Calculate Fare
     |--------------------------------------------------------------------------
+    |
+    | Mobile sends:
+    |
+    | pickup_address
+    | pickup_latitude
+    | pickup_longitude
+    |
+    | dropoff_address
+    | dropoff_latitude
+    | dropoff_longitude
+    |
+    | Address is only returned for display.
+    | Fare calculation uses latitude / longitude.
+    |
     */
 
     public function calculate(
@@ -32,8 +63,7 @@ class FareController extends Controller
                 $request->validate([
 
                     /*
-                     * Address only for display/reference.
-                     * Not used for Google route calculation.
+                     * Pickup
                      */
                     'pickup_address' => [
                         'nullable',
@@ -41,16 +71,6 @@ class FareController extends Controller
                         'max:255',
                     ],
 
-                    'dropoff_address' => [
-                        'nullable',
-                        'string',
-                        'max:255',
-                    ],
-
-
-                    /*
-                     * Pickup Coordinates
-                     */
                     'pickup_latitude' => [
                         'required',
                         'numeric',
@@ -65,8 +85,14 @@ class FareController extends Controller
 
 
                     /*
-                     * Dropoff Coordinates
+                     * Dropoff
                      */
+                    'dropoff_address' => [
+                        'nullable',
+                        'string',
+                        'max:255',
+                    ],
+
                     'dropoff_latitude' => [
                         'required',
                         'numeric',
@@ -83,153 +109,49 @@ class FareController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | Google API Key
+            | Calculate Pickup -> Dropoff Route
             |--------------------------------------------------------------------------
             */
 
-            $apiKey =
-                config(
-                    'services.google_maps.key'
-                );
+            $route =
+                $this
+                    ->routeService
+                    ->calculate(
 
+                        (float)
+                        $validated[
+                            'pickup_latitude'
+                        ],
 
-            if (!$apiKey) {
+                        (float)
+                        $validated[
+                            'pickup_longitude'
+                        ],
 
-                return response()->json([
-                    'status' => false,
+                        (float)
+                        $validated[
+                            'dropoff_latitude'
+                        ],
 
-                    'message' =>
-                        'Google Maps API key is not configured.',
-
-                ], 500);
-            }
+                        (float)
+                        $validated[
+                            'dropoff_longitude'
+                        ]
+                    );
 
 
             /*
             |--------------------------------------------------------------------------
-            | Routes API
-            |--------------------------------------------------------------------------
-            |
-            | IMPORTANT:
-            |
-            | Address is NOT used.
-            |
-            | Google route is calculated using:
-            |
-            | pickup_latitude
-            | pickup_longitude
-            | dropoff_latitude
-            | dropoff_longitude
-            |
-            */
-
-            $response =
-                Http::timeout(20)
-
-                ->withHeaders([
-
-                    'X-Goog-Api-Key' =>
-                        $apiKey,
-
-                    'X-Goog-FieldMask' =>
-                        'routes.distanceMeters,routes.duration',
-
-                    'Content-Type' =>
-                        'application/json',
-                ])
-
-                ->post(
-                    'https://routes.googleapis.com/directions/v2:computeRoutes',
-                    [
-
-                        /*
-                        |--------------------------------------------------------------------------
-                        | Origin - Pickup Coordinates
-                        |--------------------------------------------------------------------------
-                        */
-
-                        'origin' => [
-
-                            'location' => [
-
-                                'latLng' => [
-
-                                    'latitude' =>
-                                        (float)
-                                        $validated[
-                                            'pickup_latitude'
-                                        ],
-
-                                    'longitude' =>
-                                        (float)
-                                        $validated[
-                                            'pickup_longitude'
-                                        ],
-                                ],
-                            ],
-                        ],
-
-
-                        /*
-                        |--------------------------------------------------------------------------
-                        | Destination - Dropoff Coordinates
-                        |--------------------------------------------------------------------------
-                        */
-
-                        'destination' => [
-
-                            'location' => [
-
-                                'latLng' => [
-
-                                    'latitude' =>
-                                        (float)
-                                        $validated[
-                                            'dropoff_latitude'
-                                        ],
-
-                                    'longitude' =>
-                                        (float)
-                                        $validated[
-                                            'dropoff_longitude'
-                                        ],
-                                ],
-                            ],
-                        ],
-
-
-                        /*
-                        |--------------------------------------------------------------------------
-                        | Route Settings
-                        |--------------------------------------------------------------------------
-                        */
-
-                        'travelMode' =>
-                            'DRIVE',
-
-                        'routingPreference' =>
-                            'TRAFFIC_UNAWARE',
-
-                        'computeAlternativeRoutes' =>
-                            false,
-
-                        'languageCode' =>
-                            'en-US',
-
-                        'units' =>
-                            'IMPERIAL',
-                    ]
-                );
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Google API Error
+            | Route Failed
             |--------------------------------------------------------------------------
             */
 
             if (
-                !$response->successful()
+                empty(
+                    $route[
+                        'status'
+                    ]
+                )
             ) {
 
                 return response()->json([
@@ -238,41 +160,16 @@ class FareController extends Controller
                         false,
 
                     'message' =>
-                        'Unable to calculate route.',
+                        $route[
+                            'message'
+                        ]
+                        ?? 'Unable to calculate route.',
 
-                    'google_error' =>
-                        $response->json(),
-
-                ], 422);
-            }
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Google Response
-            |--------------------------------------------------------------------------
-            */
-
-            $googleData =
-                $response->json();
-
-
-            $route =
-                $googleData[
-                    'routes'
-                ][0]
-                ?? null;
-
-
-            if (!$route) {
-
-                return response()->json([
-
-                    'status' =>
-                        false,
-
-                    'message' =>
-                        'No route found between pickup and dropoff.',
+                    'error' =>
+                        $route[
+                            'error'
+                        ]
+                        ?? null,
 
                 ], 422);
             }
@@ -280,22 +177,22 @@ class FareController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | Distance In Meters
+            | Distance
             |--------------------------------------------------------------------------
             */
 
-            $distanceMeters =
+            $distanceMiles =
                 (float)
                 (
                     $route[
-                        'distanceMeters'
+                        'distance_miles'
                     ]
                     ?? 0
                 );
 
 
             if (
-                $distanceMeters <= 0
+                $distanceMiles <= 0
             ) {
 
                 return response()->json([
@@ -312,73 +209,30 @@ class FareController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | Convert Meters -> Miles
-            |--------------------------------------------------------------------------
-            */
-
-            $distanceMiles =
-                $distanceMeters
-                / 1609.344;
-
-
-            $distanceMiles =
-                round(
-                    $distanceMiles,
-                    2
-                );
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Duration
-            |--------------------------------------------------------------------------
-            |
-            | Google example:
-            |
-            | "duration": "1250s"
-            |
-            */
-
-            $duration =
-                $route[
-                    'duration'
-                ]
-                ?? '0s';
-
-
-            $durationSeconds =
-                (int)
-                str_replace(
-                    's',
-                    '',
-                    $duration
-                );
-
-
-            $durationMinutes =
-                (int)
-                ceil(
-                    $durationSeconds
-                    / 60
-                );
-
-
-            /*
-            |--------------------------------------------------------------------------
             | Fare Calculation
             |--------------------------------------------------------------------------
             */
 
             $fare =
-                FareCalculationController::calculateFare(
-                    $distanceMiles
-                );
+                $this
+                    ->fareService
+                    ->calculate(
+                        $distanceMiles
+                    );
 
+
+            /*
+            |--------------------------------------------------------------------------
+            | Fare Failed
+            |--------------------------------------------------------------------------
+            */
 
             if (
-                !$fare[
-                    'status'
-                ]
+                empty(
+                    $fare[
+                        'status'
+                    ]
+                )
             ) {
 
                 return response()->json([
@@ -389,15 +243,22 @@ class FareController extends Controller
                     'message' =>
                         $fare[
                             'message'
-                        ],
+                        ]
+                        ?? 'Unable to calculate fare.',
 
                     'data' => [
 
                         'distance_miles' =>
-                            $distanceMiles,
+                            round(
+                                $distanceMiles,
+                                2
+                            ),
 
                         'duration_minutes' =>
-                            $durationMinutes,
+                            $route[
+                                'duration_minutes'
+                            ]
+                            ?? null,
                     ],
 
                 ], 422);
@@ -421,8 +282,7 @@ class FareController extends Controller
                 'data' => [
 
                     /*
-                     * Address returned only for display.
-                     * Not used in calculation.
+                     * Pickup
                      */
 
                     'pickup_address' =>
@@ -430,17 +290,6 @@ class FareController extends Controller
                             'pickup_address'
                         ]
                         ?? null,
-
-                    'dropoff_address' =>
-                        $validated[
-                            'dropoff_address'
-                        ]
-                        ?? null,
-
-
-                    /*
-                     * Coordinates
-                     */
 
                     'pickup_latitude' =>
                         (float)
@@ -453,6 +302,17 @@ class FareController extends Controller
                         $validated[
                             'pickup_longitude'
                         ],
+
+
+                    /*
+                     * Dropoff
+                     */
+
+                    'dropoff_address' =>
+                        $validated[
+                            'dropoff_address'
+                        ]
+                        ?? null,
 
                     'dropoff_latitude' =>
                         (float)
@@ -473,34 +333,29 @@ class FareController extends Controller
 
                     'distance_miles' =>
                         $fare[
-                            'distance'
+                            'distance_miles'
                         ],
 
                     'duration_minutes' =>
-                        $durationMinutes,
+                        $route[
+                            'duration_minutes'
+                        ]
+                        ?? null,
 
 
                     /*
                      * Fare Level
                      */
 
-                    'fare_level' => [
+                    'fare_level_no' =>
+                        $fare[
+                            'level_no'
+                        ],
 
-                        'id' =>
-                            $fare[
-                                'level_id'
-                            ],
-
-                        'level_no' =>
-                            $fare[
-                                'level_no'
-                            ],
-
-                        'level_name' =>
-                            $fare[
-                                'level_name'
-                            ],
-                    ],
+                    'fare_level_name' =>
+                        $fare[
+                            'level_name'
+                        ],
 
 
                     /*
@@ -519,7 +374,7 @@ class FareController extends Controller
 
                     'fare_amount' =>
                         $fare[
-                            'fare'
+                            'fare_amount'
                         ],
 
                     'currency' =>
